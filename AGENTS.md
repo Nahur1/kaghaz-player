@@ -27,6 +27,12 @@ working tree before editing; preserve uncommitted work and the `design/` folder.
 
 ## Commit identity and publication
 
+- Application updates must increment the version in Cargo.toml and Cargo.lock
+  and include notes in docs/releases/X.Y.Z.md. Push main: the Windows Actions
+  workflow builds, tests and publishes the installer and latest.json itself.
+  Wait for the publish job and verify the public assets before reporting that
+  a version is released. Do not substitute a locally built binary for CI output.
+
 - Product owner/maintainer display name: `Mohammad Fakhari (Nahur1)`. Keep it
   in About, executable metadata, installer metadata and project documentation.
 - The root LICENSE reserves newly covered original material to the owner.

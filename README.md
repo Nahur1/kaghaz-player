@@ -48,6 +48,8 @@ Source and releases: https://github.com/Nahur1/kaghaz-player.
 
 ## Releasing an update
 
-Bump `version` in `Cargo.toml`, then run `./scripts/release.ps1 -Publish -Notes "What changed"` (needs Inno Setup 6 and the GitHub CLI). It builds `kaghaz-setup-X.Y.Z.exe` and `latest.json` and uploads both as a GitHub Release. Installed copies check about 20 seconds after start and every six hours, download the installer in the background, verify its SHA-256, and install it silently when Kaghaz closes (or straight away from About → Restart and update).
+Bump `version` in `Cargo.toml` and its package entry in `Cargo.lock`, add notes in `docs/releases/X.Y.Z.md`, then push to `main`. GitHub Actions tests the code, builds the Windows installer, verifies its checksum and publishes `kaghaz-setup-X.Y.Z.exe` plus `latest.json` as the latest release. No local build or manual tag is needed. An already published version is never overwritten; increase the version for each application update. Pull requests are built and tested without publishing. The workflow can also be run manually on `main` to retry an interrupted release.
+
+For a local installer only, run `./scripts/release.ps1` (needs Inno Setup 6). Installed copies check about 20 seconds after start and every six hours, download the latest public release in the background, verify its SHA-256, and install it silently when Kaghaz closes (or straight away from About → Restart and update).
 
 New original material covered by [LICENSE](LICENSE) is reserved to Mohammad Fakhari (Nahur1); copying or redistribution requires written permission except where expressly permitted. Earlier MIT material retains its permissions under [licenses/LEGACY-MIT.txt](licenses/LEGACY-MIT.txt). See [COPYRIGHT.md](COPYRIGHT.md) and [THIRD_PARTY.md](THIRD_PARTY.md) for scope and component terms.

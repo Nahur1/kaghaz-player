@@ -1,4 +1,4 @@
-name: Kaghaz Windows build
+name: Kaghaz Windows build and release
 on:
   workflow_dispatch:
   push:
@@ -6,9 +6,13 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: kaghaz-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
@@ -39,13 +43,34 @@ jobs:
       - name: Tests
         shell: pwsh
         run: ./scripts/build.ps1 -Test
-      - name: Release build
+      - name: Test release automation
         shell: pwsh
-        run: ./scripts/build.ps1 -Release
-      - name: Portable package
+        run: python -m unittest discover -s scripts/tests -v
+      - name: Build installer and update manifest
         shell: pwsh
-        run: ./scripts/package.ps1
+        run: ./scripts/release.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: kaghaz-player-windows-x64
-          path: dist/
+          name: kaghaz-release-windows-x64
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/kaghaz-setup-*.exe
+            dist/latest.json
+  publish:
+    if: github.repository == 'Nahur1/kaghaz-player' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: kaghaz-release-windows-x64
+          path: release-assets
+      - name: Verify and publish new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-release.py --artifact-dir release-assets --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"

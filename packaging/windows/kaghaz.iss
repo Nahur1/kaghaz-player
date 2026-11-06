@@ -21,6 +21,10 @@ VersionInfoVersion={#AppVersion}
 DefaultDirName={autopf}\Kaghaz Player
 DefaultGroupName=Kaghaz Player
 DisableProgramGroupPage=yes
+; A new version replaces the installed one, like an app store update: once
+; Kaghaz is installed, setup goes straight to its folder without asking.
+UsePreviousAppDir=yes
+DisableDirPage=auto
 PrivilegesRequired=lowest
 OutputDir=..\..\dist
 OutputBaseFilename=kaghaz-setup-{#AppVersion}
@@ -65,9 +69,38 @@ Filename: "{app}\kaghaz.exe"; Description: "{cm:LaunchProgram,Kaghaz Player}"; F
 Filename: "{app}\kaghaz.exe"; Flags: nowait; Check: WizardSilent and Relaunch
 
 [Code]
+const
+  UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{3B1C2C37-4876-48D1-93EC-94014678813D}_is1';
+
 function Relaunch: Boolean;
 begin
   Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
+
+{ The installed copy, if any: its folder and uninstaller. }
+function PreviousInstall(var Dir, Uninstaller: String): Boolean;
+begin
+  Result := RegQueryStringValue(HKCU, UninstallKey, 'InstallLocation', Dir)
+    and RegQueryStringValue(HKCU, UninstallKey, 'UninstallString', Uninstaller);
+  if not Result then
+    Result := RegQueryStringValue(HKLM, UninstallKey, 'InstallLocation', Dir)
+      and RegQueryStringValue(HKLM, UninstallKey, 'UninstallString', Uninstaller);
+end;
+
+{ Only one Kaghaz on the computer: if the new version goes to another folder,
+  the old copy is uninstalled first (settings and library are kept). }
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Dir, Uninstaller: String;
+  Code: Integer;
+begin
+  if CurStep <> ssInstall then exit;
+  if not PreviousInstall(Dir, Uninstaller) then exit;
+  if CompareText(RemoveBackslashUnlessRoot(Dir), RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) = 0 then exit;
+  Uninstaller := RemoveQuotes(Uninstaller);
+  if not FileExists(Uninstaller) then exit;
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM kaghaz.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Exec(Uninstaller, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 procedure EnvKey(var Root: Integer; var Key: string);

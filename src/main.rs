@@ -333,6 +333,8 @@ struct Player {
     update_checking: bool,
     /// A verified installer for a newer version, installed when Kaghaz closes.
     update_file: Option<PathBuf>,
+    /// Where the window was before fullscreen, to put it back exactly.
+    windowed: Option<(slint::PhysicalPosition, slint::PhysicalSize)>,
 }
 
 
@@ -1080,9 +1082,8 @@ impl Player {
         if !video {
             ui.set_sub_tracks(ModelRc::default());
             ui.set_audio_tracks(ModelRc::default());
-            let w = ui.window();
-            if w.is_fullscreen() {
-                w.set_fullscreen(false);
+            if ui.window().is_fullscreen() {
+                self.set_fullscreen(false);
             }
         }
         if self.mini {
@@ -1133,9 +1134,50 @@ impl Player {
     }
 
     fn toggle_fullscreen(&mut self) {
+        let fullscreen = self.ui().window().is_fullscreen();
+        self.set_fullscreen(!fullscreen);
+    }
+
+    fn set_fullscreen(&mut self, on: bool) {
         let ui = self.ui();
         let w = ui.window();
-        w.set_fullscreen(!w.is_fullscreen());
+        if on == w.is_fullscreen() {
+            return;
+        }
+        if on {
+            if !w.is_maximized() {
+                self.windowed = Some((w.position(), w.size()));
+            }
+            w.set_fullscreen(true);
+        } else {
+            w.set_fullscreen(false);
+            // Windows can bring back a strip of window frame on a frameless window
+            // and shift the content down; refresh the frame once the switch settles.
+            Timer::single_shot(Duration::from_millis(50), || {
+                with(|p| p.after_fullscreen());
+            });
+        }
+        if self.is_video {
+            self.video_activity();
+        }
+    }
+
+    fn after_fullscreen(&mut self) {
+        let ui = self.ui();
+        let w = ui.window();
+        if w.is_fullscreen() {
+            return;
+        }
+        w.with_winit_window(|ww| {
+            ww.set_decorations(true);
+            ww.set_decorations(false);
+        });
+        if let Some((position, size)) = self.windowed.take() {
+            w.set_size(size);
+            w.set_position(position);
+        }
+        w.request_redraw();
+        self.render_subs();
     }
 
     /// Read subtitle and audio tracks from mpv for the menus.
@@ -2030,6 +2072,7 @@ fn run() -> anyhow::Result<()> {
             update_timer: Timer::default(),
             update_checking: false,
             update_file: None,
+            windowed: None,
         })
     });
 

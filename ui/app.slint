@@ -2321,8 +2321,10 @@ export component AppWindow inherits Window {
                     opacity: root.hud-shown ? 1 : 0;
                     animate opacity { duration: 260ms; easing: ease-out; }
                     background: @linear-gradient(180deg, #000000.with-alpha(0.62) 0%, #000000.with-alpha(0) 100%);
-                    if !root.mini && !root.full-screen: WindowMoveArea { }
-                    if !root.mini && !root.full-screen: Rectangle {
+                    // Kept alive and only hidden in fullscreen, so nothing pops in on the way back.
+                    if !root.mini: WindowMoveArea { visible: !root.full-screen; }
+                    if !root.mini: Rectangle {
+                        visible: !root.full-screen;
                         x: 18px;
                         y: 14px;
                         width: lib-label.preferred-width + 40px;
@@ -2353,7 +2355,8 @@ export component AppWindow inherits Window {
                             clicked => { root.video-browse = true; }
                         }
                     }
-                    if !root.mini && !root.full-screen: TrafficLights {
+                    if !root.mini: TrafficLights {
+                        visible: !root.full-screen;
                         x: parent.width - self.width - 22px;
                         y: 13px;
                         close => { root.close-window(); }
@@ -2862,7 +2865,8 @@ export component AppWindow inherits Window {
             }
         }
 
-        if !root.mini && !root.show-video && !root.full-screen: TrafficLights {
+        if !root.mini && !root.show-video: TrafficLights {
+            visible: !root.full-screen;
             x: parent.width - self.width - 22px;
             y: 17px;
             close => { root.close-window(); }

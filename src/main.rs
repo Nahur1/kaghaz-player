@@ -1151,8 +1151,7 @@ impl Player {
             w.set_fullscreen(true);
         } else {
             w.set_fullscreen(false);
-            // Windows can bring back a strip of window frame on a frameless window
-            // and shift the content down; refresh the frame once the switch settles.
+            // Once the switch settles, make the drawing surface match the window.
             Timer::single_shot(Duration::from_millis(50), || {
                 with(|p| p.after_fullscreen());
             });
@@ -1168,14 +1167,23 @@ impl Player {
         if w.is_fullscreen() {
             return;
         }
-        w.with_winit_window(|ww| {
-            ww.set_decorations(true);
-            ww.set_decorations(false);
+        // Leaving fullscreen on Windows keeps the GPU surface at screen size, so
+        // the top of the window (title bar and controls) is cut off and the
+        // picture is cropped. A real resize makes it match the window again.
+        let (position, size) = self.windowed.take().unwrap_or((w.position(), w.size()));
+        w.set_size(slint::PhysicalSize::new(size.width, size.height + 1));
+        Timer::single_shot(Duration::from_millis(30), move || {
+            with(|p| {
+                let ui = p.ui();
+                let w = ui.window();
+                if !w.is_fullscreen() {
+                    w.set_size(size);
+                    w.set_position(position);
+                    w.request_redraw();
+                    p.render_subs();
+                }
+            });
         });
-        if let Some((position, size)) = self.windowed.take() {
-            w.set_size(size);
-            w.set_position(position);
-        }
         w.request_redraw();
         self.render_subs();
     }

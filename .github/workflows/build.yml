@@ -1,0 +1,41 @@
+name: Kaghaz Windows build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Playback dependency and fonts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force .tools, runtime/fonts | Out-Null
+          gh release download v0.1.6 --repo reza-hashemian/nava --pattern nava-windows-x64.zip --dir .tools
+          Expand-Archive .tools/nava-windows-x64.zip .tools/upstream
+          $dll = Get-ChildItem .tools/upstream -Filter libmpv-2.dll -Recurse | Select-Object -First 1
+          Copy-Item $dll.FullName runtime/libmpv-2.dll
+          Copy-Item ui/fonts/* runtime/fonts
+          python scripts/prepare-offline.py
+      - name: Tests
+        shell: pwsh
+        run: ./scripts/build.ps1 -Test
+      - name: Release build
+        shell: pwsh
+        run: ./scripts/build.ps1 -Release
+      - name: Portable package
+        shell: pwsh
+        run: ./scripts/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kaghaz-player-windows-x64
+          path: dist/Kaghaz Player 0.3.0

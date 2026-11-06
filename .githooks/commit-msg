@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+identity='Nahur1 <51950495+Nahur1@users.noreply.github.com>'
+for role in AUTHOR COMMITTER; do
+    actual=$(git var "GIT_${role}_IDENT")
+    case "$actual" in
+        "$identity "*) ;;
+        *) echo "Commit rejected: $role must use the repository owner's configured identity: $identity" >&2; exit 1 ;;
+    esac
+done
+if grep -iEq '^[[:space:]]*Co-Authored-By[[:space:]]*:' "$1"; then
+    echo 'Commit rejected: this project disables Co-Authored-By trailers.' >&2
+    exit 1
+fi

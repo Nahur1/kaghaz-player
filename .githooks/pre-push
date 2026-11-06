@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+identity='Nahur1 <51950495+Nahur1@users.noreply.github.com>'
+zero='0000000000000000000000000000000000000000'
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue
+    # Check the entire published history, including accidental upstream tags.
+    if git log --format='%an <%ae>%n%cn <%ce>' "$local_sha" -- | grep -Fvx "$identity" >/dev/null; then
+        echo "Push rejected: $local_ref contains another author/committer. Do not publish upstream backup refs." >&2
+        exit 1
+    fi
+    if git log --format='%B' "$local_sha" -- | grep -iEq '^[[:space:]]*Co-Authored-By[[:space:]]*:'; then
+        echo "Push rejected: $local_ref contains a Co-Authored-By trailer." >&2
+        exit 1
+    fi
+done

@@ -94,7 +94,7 @@ impl Player {
         }
     }
 
-    /// Closing the window with an update waiting installs it, instead of hiding in the tray.
+    /// Closing with an update waiting installs it after the player exits.
     pub(crate) fn install_update_on_close(&mut self) -> bool {
         let Some(file) = self.update_file.clone() else { return false };
         *INSTALL_ON_EXIT.lock().unwrap() = Some((file, false));

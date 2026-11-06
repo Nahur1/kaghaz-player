@@ -733,7 +733,7 @@ export component AppWindow inherits Window {
     title: window-title;
     no-frame: true;
     background: transparent;
-    resize-border-width: mini && !video-mode ? 0px : 6px;
+    resize-border-width: root.full-screen || (mini && !video-mode) ? 0px : 6px;
     min-width: mini ? (video-mode ? 280px : 360px) : 820px;
     min-height: mini ? (video-mode ? 158px : 84px) : 560px;
     max-height: mini && !video-mode ? 84px : 100000px;
@@ -777,6 +777,7 @@ export component AppWindow inherits Window {
     in property <float> duration;
     in property <bool> playing;
     in property <float> volume: 80;
+    in property <bool> muted;
     in property <bool> shuffle;
     in property <int> repeat-mode; // 0 off, 1 all, 2 one
     in property <string> resume-note;
@@ -890,6 +891,7 @@ export component AppWindow inherits Window {
     callback prev();
     callback seek(float);
     callback set-volume(float);
+    callback toggle-mute();
     callback toggle-shuffle();
     callback cycle-repeat();
     callback play-index(int);
@@ -1053,6 +1055,7 @@ export component AppWindow inherits Window {
                 if root.video-mode && (e.text == "t" || e.text == "T") { root.subs-cycle-mode(); return accept; }
                 if e.text == Key.UpArrow { root.set-volume(Math.min(root.volume + 5, 100)); return accept; }
                 if e.text == Key.DownArrow { root.set-volume(Math.max(root.volume - 5, 0)); return accept; }
+                if e.text == "m" || e.text == "M" { root.toggle-mute(); return accept; }
                 if e.text == "n" || e.text == "N" { root.next(); return accept; }
                 if e.text == "l" || e.text == "L" { root.heart-current(); return accept; }
                 if e.text == "a" || e.text == "A" { root.ab-loop(); return accept; }
@@ -2015,12 +2018,14 @@ export component AppWindow inherits Window {
                                             }
                                         }
                                     }
-                                    Icon {
-                                        icon: Icons.volume-low;
+                                    IconButton {
+                                        icon: root.muted || root.volume == 0 ? Icons.volume-muted : Icons.volume-low;
+                                        label: root.muted || root.volume == 0 ? "Unmute" : "Mute";
                                         tint: Theme.muted;
-                                        width: 16px;
-                                        height: 16px;
+                                        size: 24px;
+                                        icon-size: 16px;
                                         y: (parent.height - self.height) / 2;
+                                        clicked => { root.toggle-mute(); }
                                     }
                                     NSlider {
                                         // Shrinks before anything else so the row never spills over.
@@ -2286,6 +2291,29 @@ export component AppWindow inherits Window {
                         clicked => { root.toggle-mini(); }
                     }
                 }
+                Rectangle {
+                    x: parent.width - self.width - 10px;
+                    y: parent.height - 22px;
+                    width: 108px;
+                    height: 20px;
+                    HorizontalLayout {
+                        spacing: 6px;
+                        IconButton {
+                            icon: root.muted || root.volume == 0 ? Icons.volume-muted : Icons.volume-low;
+                            label: root.muted || root.volume == 0 ? "Unmute" : "Mute";
+                            tint: Theme.muted;
+                            size: 20px;
+                            icon-size: 14px;
+                            clicked => { root.toggle-mute(); }
+                        }
+                        NSlider {
+                            rest-thickness: 3px;
+                            value: root.volume / 100;
+                            moved(v) => { root.set-volume(v * 100); }
+                            released(v) => { root.set-volume(v * 100); }
+                        }
+                    }
+                }
                 // How far into the track we are, as a thin line along the bottom.
                 if root.has-track: Rectangle {
                     x: 0;
@@ -2306,7 +2334,9 @@ export component AppWindow inherits Window {
                     image-fit: fill;
                 }
                 video-touch := TouchArea {
-                    mouse-cursor: root.hud-shown ? MouseCursor.default : MouseCursor.none;
+                    // Keep the pointer usable even when the HUD fades out.
+                    mouse-cursor: default;
+                    changed has-hover => { if self.has-hover { root.video-activity(); } }
                     changed mouse-x => { root.video-activity(); }
                     changed mouse-y => { root.video-activity(); }
                     double-clicked => { if !root.mini { root.toggle-fullscreen(); } }
@@ -2426,6 +2456,33 @@ export component AppWindow inherits Window {
                         icon-size: 20px;
                         y: (parent.height - self.height) / 2;
                         clicked => { root.next(); }
+                    }
+                }
+                if root.mini: Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: parent.height - 34px;
+                    width: 136px;
+                    height: 24px;
+                    opacity: root.hud-shown ? 1 : 0;
+                    animate opacity { duration: 260ms; }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        IconButton {
+                            icon: root.muted || root.volume == 0 ? Icons.volume-muted : Icons.volume-high;
+                            label: root.muted || root.volume == 0 ? "Unmute" : "Mute";
+                            tint: #ffffff;
+                            size: 24px;
+                            icon-size: 16px;
+                            clicked => { root.toggle-mute(); }
+                        }
+                        NSlider {
+                            rest-thickness: 3px;
+                            fill-color: #ffffff;
+                            track-color: #ffffff.with-alpha(0.22);
+                            value: root.volume / 100;
+                            moved(v) => { root.set-volume(v * 100); }
+                            released(v) => { root.set-volume(v * 100); }
+                        }
                     }
                 }
                 if root.mini: Rectangle {
@@ -2630,6 +2687,7 @@ export component AppWindow inherits Window {
                     // Keep the controls up while the pointer is on them.
                     TouchArea {
                         changed mouse-x => { root.video-activity(); }
+                        changed mouse-y => { root.video-activity(); }
                     }
                     VerticalLayout {
                         padding-left: 18px;
@@ -2683,12 +2741,14 @@ export component AppWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 8px;
                                 width: 150px;
-                                Icon {
-                                    icon: Icons.volume-high;
+                                IconButton {
+                                    icon: root.muted || root.volume == 0 ? Icons.volume-muted : Icons.volume-high;
+                                    label: root.muted || root.volume == 0 ? "Unmute" : "Mute";
                                     tint: #ffffff.with-alpha(0.8);
-                                    width: 16px;
-                                    height: 16px;
+                                    size: 26px;
+                                    icon-size: 16px;
                                     y: (parent.height - self.height) / 2;
+                                    clicked => { root.toggle-mute(); }
                                 }
                                 NSlider {
                                     y: (parent.height - self.height) / 2;

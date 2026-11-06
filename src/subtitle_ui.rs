@@ -628,6 +628,9 @@ impl Player {
         let lift = !self.mini && !ui.get_video_browse() && (ui.get_controls_visible() || !self.playing);
         let y = if lift {
             ((logical_h - 136.0).max(logical_h * 0.6) / logical_h) * res_y
+        } else if self.mini && (ui.get_controls_visible() || !self.playing) {
+            // Leave room for PiP's mute/volume strip as well as subtitles.
+            ((logical_h - 46.0).max(logical_h * 0.55) / logical_h) * res_y
         } else if self.mini {
             res_y - 14.0
         } else {

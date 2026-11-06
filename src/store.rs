@@ -29,7 +29,7 @@ pub const BUILT_IN_SESSIONS: [&str; 3] = ["Main", "Code", "Relax"];
 
 impl Store {
     pub fn open() -> anyhow::Result<Store> {
-        let dir = dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("kaghaz");
+        let dir = crate::profile::data_dir();
         std::fs::create_dir_all(&dir)?;
         Self::open_at(dir.join("kaghaz.db"))
     }

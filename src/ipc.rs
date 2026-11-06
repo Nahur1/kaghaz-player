@@ -16,6 +16,8 @@ pub enum Cmd {
     Toggle,
     Play,
     Pause,
+    Mute,
+    Close,
     Next,
     Prev,
     /// Bring the window forward.
@@ -44,6 +46,8 @@ impl Cmd {
             Cmd::Toggle => "toggle".into(),
             Cmd::Play => "play".into(),
             Cmd::Pause => "pause".into(),
+            Cmd::Mute => "mute".into(),
+            Cmd::Close => "close".into(),
             Cmd::Next => "next".into(),
             Cmd::Prev => "prev".into(),
             Cmd::Show => "show".into(),
@@ -78,6 +82,8 @@ impl Cmd {
             "toggle" => Cmd::Toggle,
             "play" => Cmd::Play,
             "pause" => Cmd::Pause,
+            "mute" => Cmd::Mute,
+            "close" => Cmd::Close,
             "next" => Cmd::Next,
             "prev" => Cmd::Prev,
             "show" => Cmd::Show,
@@ -115,6 +121,9 @@ mod transport {
         if let Some(p) = std::env::var_os("KAGHAZ_SOCKET") {
             return p.into();
         }
+        if let Some(profile) = crate::profile::root() {
+            return profile.join("kaghaz.sock");
+        }
         let dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
         let user = std::env::var("USER").unwrap_or_default();
         dir.join(format!("kaghaz-{user}.sock"))
@@ -142,14 +151,17 @@ mod transport {
 
     pub type Stream = TcpStream;
     pub type Listener = TcpListener;
-    const PORT: u16 = 47_824;
+    fn port() -> u16 {
+        std::env::var("KAGHAZ_IPC_PORT").ok().and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(if crate::profile::root().is_some() { 47_825 } else { 47_824 })
+    }
 
     pub fn connect() -> std::io::Result<Stream> {
-        TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, PORT).into(), std::time::Duration::from_millis(300))
+        TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, port()).into(), std::time::Duration::from_millis(300))
     }
 
     pub fn listen() -> std::io::Result<Listener> {
-        TcpListener::bind((Ipv4Addr::LOCALHOST, PORT))
+        TcpListener::bind((Ipv4Addr::LOCALHOST, port()))
     }
 
     pub fn cleanup() {}
@@ -208,6 +220,8 @@ mod tests {
     fn round_trips() {
         let cmds = [
             Cmd::Toggle,
+            Cmd::Mute,
+            Cmd::Close,
             Cmd::Code,
             Cmd::SeekBy(-5.0),
             Cmd::Status("{title} · {pos}".into()),

@@ -43,7 +43,7 @@ pub fn newer(candidate: &str, current: &str) -> bool {
 }
 
 fn dir() -> PathBuf {
-    dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("kaghaz").join("updates")
+    crate::profile::local_data_dir().join("updates")
 }
 
 /// A downloaded, verified installer newer than this version, if there is one.

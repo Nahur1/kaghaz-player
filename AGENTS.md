@@ -21,6 +21,11 @@ new request explicitly changes them:
   `docs/SUBTITLE_CONTINUITY.md` for validation and its limits.
 - The existing Apple/macOS visual style, smooth playback progress, and the
   enlarged window controls at the top right with the owner's chosen order.
+- From 0.3.5: Close must stop playback and exit the process, never hide to tray.
+  Keep the fullscreen cursor visible and forward all native pointer events.
+  Mute/unmute is shared across music, video, mini and PiP volume controls.
+  Native UI tests can use KAGHAZ_PROFILE_DIR plus KAGHAZ_IPC_PORT to isolate
+  their settings, caches and IPC from the owner's running player.
 
 The active project is `D:\Kaghaz Player`, separate from MediaYar. Inspect the
 working tree before editing; preserve uncommitted work and the `design/` folder.

@@ -49,6 +49,12 @@ jobs:
       - name: Build installer and update manifest
         shell: pwsh
         run: ./scripts/release.ps1
+      - name: Smoke test real player lifecycle
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          python scripts/smoke-player.py --exe "dist/Kaghaz Player $version/kaghaz.exe"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: kaghaz-release-windows-x64

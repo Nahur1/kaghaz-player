@@ -28,10 +28,7 @@ pub struct Cue {
 }
 
 pub fn data_dir() -> PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("kaghaz")
-        .join("translation")
+    crate::profile::local_data_dir().join("translation")
 }
 
 /// A bundled file: next to the executable, in the source tree, or downloaded.

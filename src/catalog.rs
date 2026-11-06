@@ -50,16 +50,14 @@ pub struct Catalog {
 }
 
 pub fn db_path() -> PathBuf {
-    dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("kaghaz").join("kaghaz.db")
+    crate::profile::data_dir().join("kaghaz.db")
 }
 
 /// Where album covers for the grid are cached.
 pub fn thumbnail_path(album: &str) -> PathBuf {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     album.to_lowercase().hash(&mut h);
-    dirs::cache_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("kaghaz")
+    crate::profile::cache_dir()
         .join("albums")
         .join(format!("{:016x}.png", h.finish()))
 }

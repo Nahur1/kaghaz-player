@@ -24,6 +24,7 @@ mod spm;
 mod mt;
 mod translator;
 mod updater;
+mod profile;
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -54,13 +55,15 @@ USAGE
   kaghaz [OPTIONS] PATH...    Play files, folders or links (YouTube and more, via yt-dlp)
 
 CONTROL A RUNNING KAGHAZ
-  kaghaz toggle | play | pause | next | prev
+  kaghaz toggle | play | pause | mute | next | prev
+  kaghaz close                  stop playback and exit completely
   kaghaz mini | full | show
   kaghaz sleep 30 | end | off     sleep timer: minutes, end of this track, or off
   kaghaz speed 1.5               playback speed, remembered for the folder
   kaghaz mark [NOTE]             bookmark this moment (with an optional note)
   kaghaz status [--format FMT]   e.g. --format \"{state} {title} · {pos}/{dur}\"
                                fields: {state} {title} {artist} {album} {pos} {dur} {session}
+                                       {volume} {muted} {mini} {fullscreen} {controls}
 
 OPTIONS
   --session NAME     Use a session: Main, Code, Relax or one you made
@@ -117,6 +120,8 @@ fn parse_args() -> Result<Args, String> {
         let simple = match first.as_str() {
             "toggle" => Some(Cmd::Toggle),
             "pause" => Some(Cmd::Pause),
+            "mute" => Some(Cmd::Mute),
+            "close" => Some(Cmd::Close),
             "next" => Some(Cmd::Next),
             "prev" | "previous" => Some(Cmd::Prev),
             "mini" => Some(Cmd::Mini),
@@ -264,6 +269,8 @@ struct Player {
     index: Option<usize>,
     model: Rc<VecModel<TrackRow>>,
     volume: f64,
+    muted: bool,
+    last_audible_volume: f64,
     shuffle: bool,
     repeat: i32,
     playing: bool,
@@ -326,8 +333,6 @@ struct Player {
     pending_delete: Option<PathBuf>,
 
     tray: Option<KaghazTray>,
-    /// Closing the window keeps Kaghaz running in the tray (only when a tray exists).
-    close_to_tray: bool,
     subs: subtitle_ui::LiveSubs,
     update_timer: Timer,
     update_checking: bool,
@@ -455,13 +460,16 @@ impl Player {
         let index = current.as_ref().and_then(|c| queue.iter().position(|p| p == c));
         let position = if index.is_some() { s.position } else { 0.0 };
         self.volume = s.volume;
+        if self.volume > 0.0 { self.last_audible_volume = self.volume; }
         self.shuffle = s.shuffle;
         self.repeat = s.repeat;
         self.unshuffled = None;
         self.mpv.set_double("volume", self.volume);
+        self.mpv.set_flag("mute", self.muted);
         self.set_queue(queue, index.unwrap_or(0));
         let ui = self.ui();
         ui.set_volume(self.volume as f32);
+        ui.set_muted(self.muted);
         ui.set_shuffle(self.shuffle);
         ui.set_repeat_mode(self.repeat);
         if self.items.is_empty() {
@@ -849,8 +857,32 @@ impl Player {
     fn set_volume(&mut self, v: f64) {
         self.cancel_fade();
         self.volume = v.clamp(0.0, 100.0);
+        if self.volume > 0.0 {
+            self.last_audible_volume = self.volume;
+            self.muted = false;
+            self.store.set_setting("muted", "0");
+        }
         self.mpv.set_double("volume", self.volume);
+        self.mpv.set_flag("mute", self.muted);
         self.ui().set_volume(self.volume as f32);
+        self.ui().set_muted(self.muted);
+    }
+
+    fn toggle_mute(&mut self) {
+        self.cancel_fade();
+        if self.muted || self.volume <= 0.0 {
+            self.muted = false;
+            if self.volume <= 0.0 {
+                self.volume = self.last_audible_volume;
+                self.mpv.set_double("volume", self.volume);
+                self.ui().set_volume(self.volume as f32);
+            }
+        } else {
+            self.muted = true;
+        }
+        self.mpv.set_flag("mute", self.muted);
+        self.ui().set_muted(self.muted);
+        self.store.set_setting("muted", if self.muted { "1" } else { "0" });
     }
 
     fn toggle_shuffle(&mut self) {
@@ -1112,7 +1144,7 @@ impl Player {
     fn set_controls(&mut self, visible: bool) {
         let changed = self.ui().get_controls_visible() != visible;
         self.ui().set_controls_visible(visible);
-        let lift = !self.mini && (visible || !self.playing);
+        let lift = visible || !self.playing;
         self.mpv.set_string("sub-pos", if lift { "83" } else { "100" });
         if changed || !self.playing {
             self.render_subs();
@@ -1481,19 +1513,14 @@ impl Player {
 
     // ---------- tray ----------
 
-    /// Close the window but keep playing, if there's a tray to come back from.
+    /// Closing always ends playback and the process; minimise is separate.
     fn close_window(&mut self) {
         self.save_geometry();
-        // With an update waiting, closing really closes, so it can install.
-        if self.install_update_on_close() || !self.close_to_tray {
-            quit();
-            return;
-        }
-        if self.is_video && self.playing {
-            self.play_pause();
-        }
         self.save();
-        let _ = self.ui().hide();
+        self.cancel_fade();
+        self.mpv.set_flag("pause", true);
+        self.install_update_on_close();
+        quit();
     }
 
     /// The window's OpenGL went away (hidden): reload the video when it's back.
@@ -1604,6 +1631,8 @@ impl Player {
     fn command(&mut self, cmd: Cmd) -> String {
         match cmd {
             Cmd::Toggle => self.play_pause(),
+            Cmd::Mute => self.toggle_mute(),
+            Cmd::Close => self.close_window(),
             Cmd::Play => {
                 if !self.playing {
                     self.play_pause();
@@ -1693,6 +1722,11 @@ impl Player {
             .replace("{pos}", &fmt_time(self.position))
             .replace("{dur}", &fmt_time(self.duration))
             .replace("{session}", &self.session)
+            .replace("{volume}", &format!("{:.0}", self.volume))
+            .replace("{muted}", &self.mpv.get_string("mute").unwrap_or_default())
+            .replace("{fullscreen}", if self.ui().window().is_fullscreen() { "yes" } else { "no" })
+            .replace("{controls}", if self.ui().get_controls_visible() { "yes" } else { "no" })
+            .replace("{mini}", if self.mini { "yes" } else { "no" })
     }
 
     // ---------- open folder ----------
@@ -1933,6 +1967,7 @@ fn run() -> anyhow::Result<()> {
         }
     }
     let store = Store::open()?;
+    let muted = store.setting("muted").as_deref() == Some("1");
     let session = if args.code {
         CODE_SESSION.to_string()
     } else {
@@ -2026,6 +2061,8 @@ fn run() -> anyhow::Result<()> {
             index: None,
             model: Rc::new(VecModel::default()),
             volume: 80.0,
+            muted,
+            last_audible_volume: 80.0,
             shuffle: false,
             repeat: 1,
             playing: false,
@@ -2076,7 +2113,6 @@ fn run() -> anyhow::Result<()> {
             online_lyrics: true,
             pending_delete: None,
             tray: None,
-            close_to_tray: false,
             subs: subtitle_ui::LiveSubs::default(),
             update_timer: Timer::default(),
             update_checking: false,
@@ -2101,6 +2137,7 @@ fn run() -> anyhow::Result<()> {
     ui.on_set_volume(|v| {
         with(|p| p.set_volume(v as f64));
     });
+    ui.on_toggle_mute(|| { with(|p| p.toggle_mute()); });
     ui.on_toggle_shuffle(|| {
         with(|p| p.toggle_shuffle());
     });
@@ -2206,9 +2243,13 @@ fn run() -> anyhow::Result<()> {
         with(|p| p.open_link(&url, audio));
     });
     ui.on_window_resized(|| {
-        with(|p| {
-            p.apply_shape();
-            p.render_subs();
+        // Slint emits this synchronously from set_mini/fullscreen/size setters.
+        // Finish the current Player mutation before handling the new geometry.
+        let _ = slint::invoke_from_event_loop(|| {
+            with(|p| {
+                p.apply_shape();
+                p.render_subs();
+            });
         });
     });
     ui.on_row_action(|from, i, action| {
@@ -2224,7 +2265,7 @@ fn run() -> anyhow::Result<()> {
         with(|p| p.album_columns_changed(n.max(1) as usize));
     });
     ui.on_eq_box_resized(|| {
-        with(|p| p.draw_eq_curve());
+        let _ = slint::invoke_from_event_loop(|| { with(|p| p.draw_eq_curve()); });
     });
     ui.on_eq_band(|i, g| {
         with(|p| p.eq_band(i.max(0) as usize, g));
@@ -2381,7 +2422,7 @@ fn run() -> anyhow::Result<()> {
     }
     with(|p| p.system = Some(system::System::new(run_cmd)));
 
-    // Tray icon. Closing the window hides it only if the desktop shows tray icons.
+    // Tray controls are available while the window is open or minimised.
     let tray = KaghazTray::new().ok();
     if let Some(t) = &tray {
         t.on_play_pause(|| run_cmd(Cmd::Toggle));
@@ -2392,7 +2433,6 @@ fn run() -> anyhow::Result<()> {
         t.on_quit(quit);
     }
     with(|p| {
-        p.close_to_tray = tray.is_some() && system::tray_available();
         p.tray = tray;
     });
 
@@ -2450,8 +2490,22 @@ fn run() -> anyhow::Result<()> {
         });
     });
 
+    // Observe pointer activity before item hit-testing, including over child
+    // controls and fullscreen overlays. Never consume the actual input event.
+    ui.window().on_winit_window_event(|_, event| {
+        use slint::winit_030::winit::event::WindowEvent;
+        if matches!(event, WindowEvent::CursorMoved { .. } | WindowEvent::CursorEntered { .. }
+            | WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. }) {
+            // Geometry changes can deliver native pointer events while Player
+            // is already borrowed (e.g. entering mini/fullscreen). Defer work.
+            let _ = slint::invoke_from_event_loop(|| {
+                with(|p| { if p.is_video { p.video_activity(); } });
+            });
+        }
+        slint::winit_030::EventResult::Propagate
+    });
     ui.show()?;
-    // Keep running with the window hidden (tray); `quit()` ends the loop.
+    // All close paths call quit(), including the native window close event.
     slint::run_event_loop_until_quit()?;
     let relaunch = RELAUNCH_FOR_VIDEO.load(Ordering::Acquire);
     let was_mini = with(|p| p.mini).unwrap_or(false);

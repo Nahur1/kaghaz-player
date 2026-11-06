@@ -103,7 +103,7 @@ pub struct Art {
 
 /// Where cover copies for the desktop widget go. Cleared on every start.
 pub fn cover_cache_dir() -> PathBuf {
-    dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("kaghaz").join("covers")
+    crate::profile::cache_dir().join("covers")
 }
 
 fn save_cover_copy(path: &Path, cover: &RgbaImage) -> Option<PathBuf> {

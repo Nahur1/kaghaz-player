@@ -95,24 +95,6 @@ fn watch_screen_lock(run: fn(Cmd)) {
     });
 }
 
-/// Whether the desktop shows tray icons. On Linux that needs a
-/// StatusNotifierWatcher (KDE, Ubuntu's GNOME, or GNOME with the AppIndicator extension).
-pub fn tray_available() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        let check = || -> zbus::Result<bool> {
-            let conn = zbus::blocking::Connection::session()?;
-            let dbus = zbus::blocking::fdo::DBusProxy::new(&conn)?;
-            Ok(dbus.name_has_owner("org.kde.StatusNotifierWatcher".try_into()?)?)
-        };
-        check().unwrap_or(false)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        true
-    }
-}
-
 pub fn to_ui(run: fn(Cmd), cmd: Cmd) {
     let _ = slint::invoke_from_event_loop(move || run(cmd));
 }

@@ -41,6 +41,7 @@ export global Icons {
     out property <string> sliders: "M4 7h9 M17 7h3 M15 5v4 M4 17h3 M11 17h9 M9 15v4";
     out property <string> volume-low: "M11 5.5L6.5 9H4v6h2.5l4.5 3.5z M15.2 9.8a3.2 3.2 0 0 1 0 4.4";
     out property <string> volume-high: "M11 5.5L6.5 9H4v6h2.5l4.5 3.5z M15.2 9.8a3.2 3.2 0 0 1 0 4.4 M18 7a7 7 0 0 1 0 10";
+    out property <string> volume-muted: "M11 5.5L6.5 9H4v6h2.5l4.5 3.5z M16 9l5 6 M21 9l-5 6";
     out property <string> code: "M8.5 7l-5 5 5 5 M15.5 7l5 5-5 5";
     out property <string> moon: "M20 14.6A8 8 0 1 1 9.4 4a6.4 6.4 0 0 0 10.6 10.6z";
     out property <string> disc: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4z";
@@ -93,6 +94,9 @@ export component Icon inherits Path {
 }
 
 export component IconButton inherits Rectangle {
+    in property <string> label;
+    accessible-role: button;
+    accessible-label: root.label;
     in property <string> icon;
     in property <bool> solid: false;
     in property <bool> active: false;

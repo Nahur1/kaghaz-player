@@ -43,8 +43,9 @@ def release_plan(version, commit, main_commit, existing, latest):
     return "publish"
 
 
-def gh(*args, optional=False):
-    result = subprocess.run(["gh", *args], text=True, encoding="utf-8", capture_output=True)
+def gh(*args, optional=False, input_json=None):
+    result = subprocess.run(["gh", *args], text=True, encoding="utf-8", capture_output=True,
+                            input=json.dumps(input_json) if input_json is not None else None)
     if result.returncode:
         if optional and "HTTP 404" in result.stderr:
             return None
@@ -52,15 +53,18 @@ def gh(*args, optional=False):
     return result.stdout
 
 
-def api(path, optional=False):
-    result = gh("api", path, optional=optional)
+def api(path, optional=False, payload=None):
+    args = ["api", path, "--header", "Cache-Control: no-cache"]
+    if payload is not None:
+        args += ["--method", "POST", "--input", "-"]
+    result = gh(*args, optional=optional, input_json=payload)
     return json.loads(result) if result is not None else None
 
 
 def tagged_release(base, tag):
     # The by-tag endpoint only promises published releases. Authenticated lists
     # also include drafts, which lets a failed upload be resumed safely.
-    pages = json.loads(gh("api", "--paginate", "--slurp", f"{base}/releases?per_page=100"))
+    pages = json.loads(gh("api", "--paginate", "--slurp", "--header", "Cache-Control: no-cache", f"{base}/releases?per_page=100"))
     return next((release for page in pages for release in page if release["tag_name"] == tag), None)
 
 
@@ -89,14 +93,14 @@ def publish(directory, repository, commit):
         return
     # Keep the release private until both update files have been uploaded.
     if not existing:
-        args = ["release", "create", tag, "--repo", repository, "--target", commit,
-                "--draft", "--title", f"Kaghaz Player {version}"]
         notes = Path("docs/releases") / f"{version}.md"
-        args += ["--notes-file", str(notes)] if notes.is_file() else ["--generate-notes"]
-        gh(*args)
-        existing = tagged_release(base, tag)
-        if existing is None:
-            raise ValueError("Created draft release could not be found")
+        # Use the creation response's ID directly: a newly created draft can
+        # take time to appear in GitHub's release list.
+        existing = api(f"{base}/releases", payload={
+            "tag_name": tag, "target_commitish": commit, "draft": True,
+            "name": f"Kaghaz Player {version}",
+            "body": notes.read_text(encoding="utf-8") if notes.is_file() else f"Kaghaz Player {version}",
+        })
     gh("release", "upload", tag, str(installer), str(Path(directory) / "latest.json"),
        "--repo", repository, "--clobber")
     draft = api(f"{base}/releases/{existing['id']}")

@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import re
 
 spec = importlib.util.spec_from_file_location("publisher", Path(__file__).parents[1] / "publish-release.py")
 publisher = importlib.util.module_from_spec(spec)
@@ -51,6 +53,42 @@ class ReleaseTests(unittest.TestCase):
     def test_unrelated_draft_never_overwritten(self):
         with self.assertRaises(ValueError):
             publisher.release_plan("0.3.4", "a", "a", dict(draft=True, target_commitish="b"), None)
+
+    def test_new_draft_uses_creation_id_without_waiting_for_release_list(self):
+        version = re.search(r'^version = "([^"]+)"', Path("Cargo.toml").read_text(), re.MULTILINE).group(1)
+        commit = "a" * 40
+        latest_reads = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            installer = root / f"kaghaz-setup-{version}.exe"
+            installer.write_bytes(b"installer")
+            (root / "latest.json").write_text(json.dumps(dict(
+                version=version, sha256=hashlib.sha256(installer.read_bytes()).hexdigest(),
+                url=f"https://github.com/Nahur1/kaghaz-player/releases/download/v{version}/{installer.name}")))
+            draft = dict(id=7, draft=True, target_commitish=commit)
+
+            def fake_api(path, optional=False, payload=None):
+                if path.endswith("/git/ref/heads/main"):
+                    return {"object": {"sha": commit}}
+                if path.endswith("/releases/latest"):
+                    latest_reads.append(True)
+                    return dict(tag_name=f"v{version}" if len(latest_reads) == 3 else "v0.0.0", draft=False)
+                if path.endswith("/releases") and payload is not None:
+                    self.assertTrue(payload["draft"])
+                    self.assertEqual(payload["target_commitish"], commit)
+                    return draft
+                if path.endswith("/releases/7"):
+                    return dict(draft, assets=[dict(name=p.name, size=p.stat().st_size)
+                                              for p in [installer, root / "latest.json"]])
+                self.fail(f"Unexpected API request: {path}")
+
+            with patch.object(publisher, "tagged_release", return_value=None) as lookup, \
+                 patch.object(publisher, "api", side_effect=fake_api), \
+                 patch.object(publisher, "gh", return_value="") as cli, \
+                 patch.object(publisher, "summary"):
+                publisher.publish(root, "Nahur1/kaghaz-player", commit)
+                self.assertEqual(lookup.call_count, 1)
+                self.assertEqual([call.args[1] for call in cli.call_args_list], ["upload", "edit"])
 
 
 if __name__ == "__main__":

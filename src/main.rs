@@ -1008,6 +1008,7 @@ impl Player {
             }
         }
         self.follow_lyrics();
+        self.sync_live_subs();
         self.ticks = self.ticks.wrapping_add(1);
         // Keep database writes at five-second intervals even at video cadence.
         let per_5s = (5000 / self.ticker.interval().as_millis().max(1)).max(1) as u32;

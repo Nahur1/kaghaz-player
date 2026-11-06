@@ -15,6 +15,10 @@ new request explicitly changes them:
   one-pixel resize that restores the GPU surface after leaving fullscreen.
 - The stable installer AppId, updates over the existing installation, cleanup
   of older installation copies, preserved user settings and automatic updater.
+- The 0.3.4 subtitle continuity fix: preserve within-sentence cue gaps, keep the
+  source visible during translation waits, reconcile missed subtitle events,
+  and invalidate old extraction results after track resets. See
+  `docs/SUBTITLE_CONTINUITY.md` for validation and its limits.
 - The existing Apple/macOS visual style, smooth playback progress, and the
   enlarged window controls at the top right with the owner's chosen order.
 

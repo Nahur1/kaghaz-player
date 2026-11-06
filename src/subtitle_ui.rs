@@ -60,6 +60,7 @@ pub struct LiveSubs {
     wait: Option<Timer>,
     /// When the current line arrived from mpv (for KAGHAZ_SUBS_LOG).
     line_at: Option<std::time::Instant>,
+    last_sync: Option<std::time::Instant>,
     job: Option<Arc<AtomicBool>>,
     job_gen: u64,
 }
@@ -358,6 +359,10 @@ impl Player {
     }
 
     pub fn subs_file_loaded(&mut self) {
+        self.subs.line.clear();
+        self.subs.key.clear();
+        self.subs.wait = None;
+        self.remove_overlay();
         self.subs.cues_for = None;
         if self.subs.mode != MODE_ORIGINAL && self.is_video {
             let sid = self.mpv.get_string("sid").unwrap_or_default();
@@ -370,6 +375,12 @@ impl Player {
     }
 
     pub fn on_sub_track(&mut self, sid: String) {
+        if self.subs.sid != sid {
+            self.subs.line.clear();
+            self.subs.key.clear();
+            self.subs.wait = None;
+            self.remove_overlay();
+        }
         self.subs.sid = sid;
         self.subs.blocked = None;
         let track = if self.is_video { self.selected_sub_track() } else { None };
@@ -428,6 +439,8 @@ impl Player {
     }
 
     fn set_cues(&mut self, cues: Vec<Cue>) {
+        // Also invalidate extraction work when the track is turned off or reset.
+        self.subs.cue_gen += 1;
         let (groups, group_of) = sentence_groups(&cues);
         let mut by_text: HashMap<String, Vec<usize>> = HashMap::new();
         for (i, c) in cues.iter().enumerate() {
@@ -469,7 +482,43 @@ impl Player {
 
     // ---------- the line on screen ----------
 
+    fn current_sub_line(&self, text: String) -> String {
+        if !text.trim().is_empty() || !self.subs_active() || self.subs.sid == "no" || self.subs.sid.is_empty() {
+            return text;
+        }
+        // Property-change events can briefly report an empty line at a cue
+        // boundary, or arrive after the next line has already started.
+        if let Some(current) = self.mpv.get_string("sub-text").filter(|t| !t.trim().is_empty()) {
+            return current;
+        }
+        let position = self.mpv.get_double("time-pos").unwrap_or(self.position);
+        let delay = self.mpv.get_double("sub-delay").unwrap_or(0.0);
+        let speed = self.mpv.get_double("sub-speed").unwrap_or(1.0);
+        subtitle_time_ms(position, delay, speed)
+            .and_then(|now| self.subs.timed_line(now))
+            .unwrap_or_default()
+            .to_owned()
+    }
+
+    /// Recover from missed/coalesced property notifications without redrawing
+    /// every video frame. Cue timing still clears real gaps and seeks.
+    pub fn sync_live_subs(&mut self) {
+        if !self.subs_active() || !self.loaded {
+            return;
+        }
+        let now = std::time::Instant::now();
+        if self.subs.last_sync.is_some_and(|last| now.duration_since(last) < Duration::from_millis(100)) {
+            return;
+        }
+        self.subs.last_sync = Some(now);
+        let line = self.current_sub_line(self.mpv.get_string("sub-text").unwrap_or_default());
+        if line.trim() != self.subs.line {
+            self.on_sub_text(line);
+        }
+    }
+
     pub fn on_sub_text(&mut self, text: String) {
+        let text = self.current_sub_line(text);
         self.subs.line = text.trim().to_owned();
         self.subs.line_at = Some(std::time::Instant::now());
         if !self.subs_active() {
@@ -516,8 +565,8 @@ impl Player {
         if let Some(t) = &self.subs.translator {
             t.now(key);
         }
-        // Normally the Persian arrives within milliseconds. If not, show the
-        // original rather than nothing.
+        // Keep the source readable while translation is pending. In particular,
+        // moving the mouse must not clear both lines during this short wait.
         let timer = Timer::default();
         timer.start(TimerMode::SingleShot, Duration::from_millis(220), || {
             with(|p| {
@@ -526,6 +575,7 @@ impl Player {
             });
         });
         self.subs.wait = Some(timer);
+        self.render_subs();
     }
 
     /// mpv draws its own subtitles unless we're showing the pair.
@@ -558,10 +608,8 @@ impl Player {
         let s = &self.subs;
         let english = if s.mostly_english() { s.line.clone() } else { String::new() };
         let persian = s.cache.get(&s.key).cloned().unwrap_or_default();
-        let waiting = s.wait.is_some();
-        let show_en = s.mode == MODE_DUAL || (persian.is_empty() && !waiting);
-        let (en, fa) = (if show_en { english } else { String::new() }, if waiting { String::new() } else { persian });
-        if (en.is_empty() && fa.is_empty()) || waiting {
+        let (en, fa) = display_lines(s.mode, &english, &persian, s.wait.is_some());
+        if en.is_empty() && fa.is_empty() {
             self.remove_overlay();
             return;
         }
@@ -761,9 +809,35 @@ pub fn overlay_event(en: &str, fa: &str, persian_top: bool, size: i32, res_x: f3
 }
 
 impl LiveSubs {
+    /// Keep a translated sentence through the small gaps between its own cues,
+    /// but never extend it past that sentence or into an unrelated silent gap.
+    fn timed_line(&self, now: u64) -> Option<&str> {
+        let i = self.cues.partition_point(|c| c.start <= now).checked_sub(1)?;
+        let cue = &self.cues[i];
+        if now < cue.end {
+            return Some(&cue.text);
+        }
+        let next = self.cues.get(i + 1)?;
+        let same_sentence = self.group_of.get(i).zip(self.group_of.get(i + 1)).is_some_and(|(a, b)| a == b);
+        (same_sentence && now < next.start).then_some(cue.text.as_str())
+    }
+
     fn mostly_english(&self) -> bool {
         !mostly_persian(&self.line)
     }
+}
+
+fn subtitle_time_ms(position: f64, delay: f64, speed: f64) -> Option<u64> {
+    let time = (position - delay) / speed;
+    (speed.is_finite() && speed > 0.0 && time.is_finite() && time >= 0.0).then_some((time * 1000.0) as u64)
+}
+
+fn display_lines(mode: i32, english: &str, persian: &str, waiting: bool) -> (String, String) {
+    let ready = !waiting && !persian.trim().is_empty();
+    (
+        if mode == MODE_DUAL || !ready { english.to_owned() } else { String::new() },
+        if ready { persian.to_owned() } else { String::new() },
+    )
 }
 
 fn export(
@@ -872,12 +946,91 @@ mod tests {
         assert_eq!(groups[0].text, "I don't know if\nwe can make it.");
         assert_eq!(of, vec![0, 0, 1, 2, 3]);
     }
+
+    fn timeline(cues: Vec<Cue>) -> LiveSubs {
+        let (groups, group_of) = sentence_groups(&cues);
+        let mut s = LiveSubs::default();
+        s.cues = cues;
+        s.groups = groups;
+        s.group_of = group_of;
+        s
+    }
+
+    #[test]
+    fn sentence_translation_survives_short_cue_gaps_but_clears_on_seek() {
+        // The reported course has 10 ms gaps around 03:48, inside one sentence.
+        let s = timeline(vec![
+            cue(223970, 228360, "For this example,"),
+            cue(228370, 234280, "we use the next feature,"),
+            cue(234290, 240060, "and compare the results."),
+            cue(240530, 248100, "A different sentence."),
+        ]);
+        assert_eq!(s.timed_line(228365), Some("For this example,"));
+        assert_eq!(s.timed_line(234285), Some("we use the next feature,"));
+        assert_eq!(s.timed_line(228370), Some("we use the next feature,"));
+        assert_eq!(s.timed_line(240200), None);
+        assert_eq!(s.timed_line(210000), None);
+        assert_eq!(s.timed_line(260000), None);
+        assert_eq!(s.timed_line(224000), Some("For this example,"));
+    }
+
+    #[test]
+    fn unrelated_cues_and_disabled_track_do_not_leave_stale_lines() {
+        let s = timeline(vec![cue(1000, 2000, "Hello."), cue(2010, 3000, "Goodbye.")]);
+        assert_eq!(s.timed_line(2005), None);
+        assert_eq!(LiveSubs::default().timed_line(1500), None);
+        assert_eq!(subtitle_time_ms(3.0, 1.0, 2.0), Some(1000));
+        assert_eq!(subtitle_time_ms(0.0, 1.0, 1.0), None);
+        assert_eq!(subtitle_time_ms(1.0, 0.0, 0.0), None);
+    }
+
+    #[test]
+    fn controls_redraw_keeps_source_visible_while_translation_is_pending() {
+        for mode in [MODE_DUAL, MODE_PERSIAN] {
+            assert_eq!(display_lines(mode, "A new line", "", true), ("A new line".into(), String::new()));
+        }
+        assert_eq!(display_lines(MODE_PERSIAN, "Hello", "سلام", false), (String::new(), "سلام".into()));
+        assert_eq!(display_lines(MODE_DUAL, "Hello", "سلام", false), ("Hello".into(), "سلام".into()));
+        assert_eq!(display_lines(MODE_PERSIAN, "Hello", "", false), ("Hello".into(), String::new()));
+    }
+
+    #[test]
+    #[ignore = "Needs a local subtitle folder in KAGHAZ_SUBS_TEST_DIR"]
+    fn course_cue_continuity() {
+        fn visit(path: &Path, checked: &mut (usize, usize)) {
+            for entry in std::fs::read_dir(path).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path, checked);
+                } else if path.extension().is_some_and(|e| e == "srt") {
+                    let s = timeline(subtitles::parse(&std::fs::read(&path).unwrap()).unwrap());
+                    checked.0 += 1;
+                    for (i, pair) in s.cues.windows(2).enumerate() {
+                        if pair[0].end < pair[1].start && s.group_of[i] == s.group_of[i + 1] {
+                            let time = pair[0].end + (pair[1].start - pair[0].end) / 2;
+                            assert!(s.timed_line(time).is_some(), "{} at {time}", path.display());
+                            checked.1 += 1;
+                        }
+                    }
+                    if let Some(last) = s.cues.last() {
+                        assert!(s.timed_line(last.end + 1000).is_none());
+                    }
+                }
+            }
+        }
+        let mut checked = (0, 0);
+        visit(Path::new(&std::env::var("KAGHAZ_SUBS_TEST_DIR").unwrap()), &mut checked);
+        assert!(checked.0 > 0 && checked.1 > 0);
+        eprintln!("Checked {} subtitle files and {} sentence gaps", checked.0, checked.1);
+    }
     /// Shows the fixture in a short-lived mpv window and saves window screenshots
     /// (video + subtitles + overlay), for checking the real libass rendering.
     #[test]
     #[ignore = "Opens a window; needs libmpv, the model and test-results/live-demo.mkv"]
     fn render_overlay_frames() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let video = std::env::var_os("KAGHAZ_SUBS_TEST_VIDEO").map(PathBuf::from)
+            .unwrap_or_else(|| root.join("test-results/live-demo.mkv"));
         let model = crate::mt::Model::load(&root.join("models/enfa")).unwrap();
         let out = root.join("test-results/frames");
         std::fs::create_dir_all(&out).unwrap();
@@ -885,19 +1038,27 @@ mod tests {
         for (k, v) in [("ao", "null"), ("vo", "gpu"), ("geometry", "1280x720"), ("pause", "yes"), ("sub-visibility", "no")] {
             mpv.set_string(k, v);
         }
-        mpv.load(&root.join("test-results/live-demo.mkv").to_string_lossy(), 2.0).unwrap();
+        mpv.load(&video.to_string_lossy(), 2.0).unwrap();
         let deadline = std::time::Instant::now() + Duration::from_secs(20);
         while std::time::Instant::now() < deadline {
             if let Some(crate::mpv::Event::FileLoaded) = mpv.wait_event(1.0) {
                 break;
             }
         }
-        let cases = [
-            ("You're pulling my leg, aren't you?", false, 1),
-            ("- Where were you last night?\n- I was at home, watching TV.", true, 1),
-            ("Look, we don't have to see eye to eye on everything, but when things fall apart, I've got your back.", false, 2),
-        ];
-        for (i, (en, top, size)) in cases.iter().enumerate() {
+        let cases: Vec<(String, bool, i32, f64)> = if std::env::var_os("KAGHAZ_SUBS_TEST_VIDEO").is_some() {
+            let cues = subtitles::parse(&std::fs::read(video.with_extension("srt")).unwrap()).unwrap();
+            [0, cues.len() / 2, cues.len() - 1].into_iter().enumerate()
+                .map(|(i, n)| (cues[n].text.clone(), i == 1, if i == 2 { 2 } else { 1 }, cues[n].start as f64 / 1000.0 + 0.05))
+                .collect()
+        } else {
+            vec![
+                ("You're pulling my leg, aren't you?".into(), false, 1, 2.0),
+                ("- Where were you last night?\n- I was at home, watching TV.".into(), true, 1, 2.0),
+                ("Look, we don't have to see eye to eye on everything, but when things fall apart, I've got your back.".into(), false, 2, 2.0),
+            ]
+        };
+        for (i, (en, top, size, position)) in cases.iter().enumerate() {
+            mpv.seek_absolute(*position);
             let fa = model.translate(en);
             eprintln!("{en} → {fa}");
             let event = overlay_event(en, &fa, *top, *size, 1280.0, 690.0);

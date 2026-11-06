@@ -8,9 +8,9 @@ An independent local music and video player with an Apple-inspired glass interfa
 
 ## Run on this Windows computer
 
-Run `kaghaz-setup-0.3.3.exe` (from [Releases](https://github.com/Nahur1/kaghaz-player/releases) or `dist`). It installs for your user only, with no administrator prompt, adds Start menu and desktop shortcuts, and from then on Kaghaz keeps itself up to date automatically. The installed app is about 175 MB, the Persian model included.
+Run `kaghaz-setup-0.3.4.exe` (from [Releases](https://github.com/Nahur1/kaghaz-player/releases) or `dist`). It installs for your user only, with no administrator prompt, adds Start menu and desktop shortcuts, and from then on Kaghaz keeps itself up to date automatically. The installed app is about 175 MB, the Persian model included.
 
-A portable copy is also built in `dist/Kaghaz Player 0.3.3` (keep `libmpv-2.dll`, `runtime` and `models` beside `kaghaz.exe`); portable copies don't update themselves.
+A portable copy is also built in `dist/Kaghaz Player 0.3.4` (keep `libmpv-2.dll`, `runtime` and `models` beside `kaghaz.exe`); portable copies don't update themselves.
 
 ## Live Persian subtitles, offline
 

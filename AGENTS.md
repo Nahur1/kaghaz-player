@@ -27,8 +27,11 @@ working tree before editing; preserve uncommitted work and the `design/` folder.
 - Commits made on the owner's behalf must use the repository-local identity:
   `Nahur1 <51950495+Nahur1@users.noreply.github.com>` for author and committer.
 - Never add AI identities, `Co-Authored-By` trailers, or override this identity
-  with Codex/Claude names. Do not attribute another person's work to the owner;
-  keep third-party license and copyright notices intact.
+  with tool or model names. Do not attribute another person's work to the owner;
+  keep third-party dependency license and copyright notices intact. On
+  2026-11-06 the owner confirmed that the original player author requested
+  removal of their personal attribution, including the original copyright
+  name. Honor that exception; do not restore their name in project files.
 - `.githooks/commit-msg` and `.githooks/pre-push` enforce this local policy.
   For a fresh checkout, configure `git config --local core.hooksPath .githooks`,
   `user.name`, `user.email`, and `user.useConfigOnly true` before committing.

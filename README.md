@@ -1,6 +1,6 @@
 # Kaghaz Player · کاغذ پلیر
 
-An independent local music and video player based on [Nava](https://github.com/reza-hashemian/nava). Rust, Slint and libmpv retain the original Apple-inspired glass interface. Window controls are at the upper right. The default Graphite palette matches the reference interface.
+An independent local music and video player with an Apple-inspired glass interface, built with Rust, Slint and libmpv. Window controls are at the upper right. The default Graphite palette matches the reference interface. Source origins and license notices are documented in [THIRD_PARTY.md](THIRD_PARTY.md) and [LICENSE](LICENSE).
 
 [راهنمای فارسی](README.fa.md)
 
@@ -25,7 +25,7 @@ FFmpeg is optional. With it (in `runtime` or PATH), embedded tracks are also rea
 
 ## Playback
 
-Music library, albums, artists, favorites, sessions, equalizer and existing player features are retained. Video includes fullscreen (F), picture in picture, speed, seeking (arrows: 5 s, Shift+arrows: 1 s), frame stepping (`,` and `.`), subtitle/audio track selection and remembered playback position. V switches between the movie and library. The original Nava data is untouched: Kaghaz uses its own `kaghaz` data/cache folders and Windows control port 47824.
+Music library, albums, artists, favorites, sessions, equalizer and existing player features are retained. Video includes fullscreen (F), picture in picture, speed, seeking (arrows: 5 s, Shift+arrows: 1 s), frame stepping (`,` and `.`), subtitle/audio track selection and remembered playback position. V switches between the movie and library. Kaghaz uses its own `kaghaz` data/cache folders and Windows control port 47824, preserving data from earlier players.
 
 ## Build on Windows
 
@@ -42,10 +42,10 @@ Real-model checks (ignored by default): `./scripts/build.ps1 -Release -Test -Fil
 
 ## Repository and credits
 
-Source and releases: https://github.com/Nahur1/kaghaz-player. The upstream Nava remote stays read-only.
+Source and releases: https://github.com/Nahur1/kaghaz-player.
 
 ## Releasing an update
 
 Bump `version` in `Cargo.toml`, then run `./scripts/release.ps1 -Publish -Notes "What changed"` (needs Inno Setup 6 and the GitHub CLI). It builds `kaghaz-setup-X.Y.Z.exe` and `latest.json` and uploads both as a GitHub Release. Installed copies check about 20 seconds after start and every six hours, download the installer in the background, verify its SHA-256, and install it silently when Kaghaz closes (or straight away from About → Restart and update).
 
-Original Nava copyright and MIT license remain in [LICENSE](LICENSE). See [THIRD_PARTY.md](THIRD_PARTY.md) for components and redistribution terms.
+The MIT license is included in [LICENSE](LICENSE). See [THIRD_PARTY.md](THIRD_PARTY.md) for components and redistribution terms.

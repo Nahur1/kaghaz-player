@@ -20,10 +20,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force .tools, runtime/fonts | Out-Null
-          gh release download v0.1.6 --repo reza-hashemian/nava --pattern nava-windows-x64.zip --dir .tools
-          Expand-Archive .tools/nava-windows-x64.zip .tools/upstream
-          $dll = Get-ChildItem .tools/upstream -Filter libmpv-2.dll -Recurse | Select-Object -First 1
-          Copy-Item $dll.FullName runtime/libmpv-2.dll
+          # Bootstrap the playback DLL from our own pinned release.
+          gh release download v0.3.3 --repo Nahur1/kaghaz-player --pattern kaghaz-setup-0.3.3.exe --dir .tools
+          if ($LASTEXITCODE) { throw 'Playback dependency download failed' }
+          $setup = Join-Path $PWD '.tools/kaghaz-setup-0.3.3.exe'
+          $expected = 'ce71da4535d6a0186c773146b97317b8eaed83ff52f7b47b51e5d17dd3b3cea6'
+          if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
+            throw 'Playback dependency checksum mismatch'
+          }
+          $seed = Join-Path $PWD '.tools/seed-app'
+          $install = Start-Process -FilePath $setup -WindowStyle Hidden -Wait -PassThru -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/TASKS=', "/DIR=`"$seed`""
+          )
+          if ($install.ExitCode -notin 0, 3010) { throw "Dependency setup failed: $($install.ExitCode)" }
+          Copy-Item -LiteralPath (Join-Path $seed 'libmpv-2.dll') -Destination runtime/libmpv-2.dll
           Copy-Item ui/fonts/* runtime/fonts
           python scripts/prepare-offline.py
       - name: Tests

@@ -23,6 +23,13 @@ working tree before editing; preserve uncommitted work and the `design/` folder.
 
 ## Commit identity and publication
 
+- Product owner/maintainer display name: `Mohammad Fakhari (Nahur1)`. Keep it
+  in About, executable metadata, installer metadata and project documentation.
+- The root LICENSE reserves newly covered original material to the owner.
+  Earlier MIT permissions remain in `licenses/LEGACY-MIT.txt`; never imply
+  that the policy revokes past grants or transfers third-party ownership.
+  Ship LICENSE, COPYRIGHT.md, THIRD_PARTY.md and the licenses directory together.
+
 - This owner's repository is https://github.com/Nahur1/kaghaz-player.
 - Commits made on the owner's behalf must use the repository-local identity:
   `Nahur1 <51950495+Nahur1@users.noreply.github.com>` for author and committer.

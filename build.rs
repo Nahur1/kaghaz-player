@@ -13,6 +13,8 @@ fn main() {
         if let Ok(path) = std::env::var("KAGHAZ_RC_DIR") { res.set_toolkit_path(&path); }
         res.set_icon("packaging/windows/kaghaz.ico");
         res.set("ProductName", "Kaghaz Player");
+        res.set("CompanyName", "Mohammad Fakhari (Nahur1)");
+        res.set("LegalCopyright", "Copyright (c) 2026 Mohammad Fakhari (Nahur1). See LICENSE for scope and third-party terms.");
         res.set("FileDescription", "Kaghaz Player · Offline Persian Subtitles");
         res.compile().expect("Windows resources failed");
     }

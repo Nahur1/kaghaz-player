@@ -13,11 +13,14 @@
 AppId={{3B1C2C37-4876-48D1-93EC-94014678813D}
 AppName=Kaghaz Player
 AppVersion={#AppVersion}
-AppPublisher=Kaghaz Player
+AppPublisher=Mohammad Fakhari (Nahur1)
 AppPublisherURL=https://github.com/Nahur1/kaghaz-player
 AppUpdatesURL=https://github.com/Nahur1/kaghaz-player/releases
 AppVerName=Kaghaz Player {#AppVersion}
 VersionInfoVersion={#AppVersion}
+VersionInfoCompany=Mohammad Fakhari (Nahur1)
+AppCopyright=Copyright (c) 2026 Mohammad Fakhari (Nahur1). See LICENSE for scope.
+LicenseFile=..\..\LICENSE
 DefaultDirName={autopf}\Kaghaz Player
 DefaultGroupName=Kaghaz Player
 DisableProgramGroupPage=yes

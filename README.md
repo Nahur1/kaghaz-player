@@ -1,5 +1,7 @@
 # Kaghaz Player · کاغذ پلیر
 
+By **Mohammad Fakhari (Nahur1)** · [Copyright and use conditions](COPYRIGHT.md).
+
 An independent local music and video player with an Apple-inspired glass interface, built with Rust, Slint and libmpv. Window controls are at the upper right. The default Graphite palette matches the reference interface. Source origins and license notices are documented in [THIRD_PARTY.md](THIRD_PARTY.md) and [LICENSE](LICENSE).
 
 [راهنمای فارسی](README.fa.md)
@@ -48,4 +50,4 @@ Source and releases: https://github.com/Nahur1/kaghaz-player.
 
 Bump `version` in `Cargo.toml`, then run `./scripts/release.ps1 -Publish -Notes "What changed"` (needs Inno Setup 6 and the GitHub CLI). It builds `kaghaz-setup-X.Y.Z.exe` and `latest.json` and uploads both as a GitHub Release. Installed copies check about 20 seconds after start and every six hours, download the installer in the background, verify its SHA-256, and install it silently when Kaghaz closes (or straight away from About → Restart and update).
 
-The MIT license is included in [LICENSE](LICENSE). See [THIRD_PARTY.md](THIRD_PARTY.md) for components and redistribution terms.
+New original material covered by [LICENSE](LICENSE) is reserved to Mohammad Fakhari (Nahur1); copying or redistribution requires written permission except where expressly permitted. Earlier MIT material retains its permissions under [licenses/LEGACY-MIT.txt](licenses/LEGACY-MIT.txt). See [COPYRIGHT.md](COPYRIGHT.md) and [THIRD_PARTY.md](THIRD_PARTY.md) for scope and component terms.

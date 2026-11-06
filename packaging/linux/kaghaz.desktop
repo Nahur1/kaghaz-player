@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Kaghaz Player
+X-Kaghaz-Maintainer=Mohammad Fakhari (Nahur1)
 GenericName=Music Player
 Comment=A calm, glassy music and video player
 Exec=kaghaz %U

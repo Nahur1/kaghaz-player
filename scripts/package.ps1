@@ -21,6 +21,8 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts\MODEL-LICENSE.txt') -Des
 if ($IncludeFFmpeg) {
     Copy-Item -LiteralPath (Join-Path $projectRoot 'runtime\ffmpeg.exe') -Destination "$out\runtime" -Force
 }
-Copy-Item -LiteralPath (Join-Path $projectRoot 'README.fa.md'),(Join-Path $projectRoot 'README.md'),(Join-Path $projectRoot 'LICENSE'),(Join-Path $projectRoot 'THIRD_PARTY.md') -Destination $out -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'README.fa.md'),(Join-Path $projectRoot 'README.md'),(Join-Path $projectRoot 'LICENSE'),(Join-Path $projectRoot 'COPYRIGHT.md'),(Join-Path $projectRoot 'THIRD_PARTY.md') -Destination $out -Force
+New-Item -ItemType Directory -Force (Join-Path $out 'licenses') | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'licenses\LEGACY-MIT.txt') -Destination (Join-Path $out 'licenses') -Force
 $size = (Get-ChildItem -LiteralPath $out -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB
 Write-Host ("Portable app: {0}\kaghaz.exe  ({1:N0} MB)" -f $out, $size)

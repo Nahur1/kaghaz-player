@@ -1,21 +1,50 @@
-MIT License
+Kaghaz Player - Rights and Use Conditions
 
-Copyright (c) 2026 Nahur1 (Kaghaz Player contributions)
+Copyright (c) 2026 Mohammad Fakhari (Nahur1), for original contributions
+owned by the author. All rights reserved except as expressly stated below.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Scope
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+These conditions apply only to copyrightable original material owned by
+Mohammad Fakhari and first published under these conditions, starting with
+the commit introducing this file on 2026-11-06. They do not claim ownership
+of third-party work or revoke any permission granted for earlier releases.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The source baseline at commit e1f68cf02c4c5c7c71c358a8a970af82c11a10d3 and
+material previously released under MIT remain available under their existing
+MIT terms. The preserved MIT text is in licenses/LEGACY-MIT.txt. Independent
+components retain their own licenses, as described in THIRD_PARTY.md.
+
+2. Official application use
+
+The author permits installation and personal, noncommercial use of official
+Kaghaz Player binaries, including copies necessary for installation and backup.
+This permission does not authorize redistribution of newly restricted material.
+
+3. Reserved rights
+
+Except for section 2, applicable law, previously granted permissions, and
+independent component licenses, no permission is granted to copy, modify,
+redistribute, sublicense, sell, or create derivative works of material covered
+by these conditions without prior written permission from Mohammad Fakhari.
+No permission is granted to remove the author's notices from that material
+or to present it as another person's original work.
+
+4. Project identity
+
+Kaghaz Player's name and branding identify this project by Mohammad Fakhari
+(Nahur1). These conditions grant no right to impersonate the author or falsely
+present a derivative or redistributed product as an official release.
+They do not assert registered trademark status.
+
+5. Public hosting
+
+Hosting on GitHub does not grant additional rights under this file. Viewing
+and forking rights provided by GitHub's applicable terms are not restricted
+by these conditions. Permission requests: https://github.com/Nahur1.
+
+6. Disclaimer
+
+THE MATERIAL IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. TO THE EXTENT
+PERMITTED BY LAW, THE AUTHOR IS NOT LIABLE FOR CLAIMS OR DAMAGES ARISING
+FROM ITS USE.

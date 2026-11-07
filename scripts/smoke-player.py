@@ -27,6 +27,7 @@ def run(exe, video=None):
         media = Path(video).resolve(strict=True) if video else audio
         env.update(KAGHAZ_PROFILE_DIR=str(root / "profile"), KAGHAZ_RENDERER="gl" if video else "software", KAGHAZ_AO="null")
         env.setdefault("KAGHAZ_MPV_LOG", "1")
+        env.setdefault("SLINT_SCALE_FACTOR", "1")  # Hosted Mac VMs render OpenGL on the CPU.
         env.pop("KAGHAZ_MINI", None)
         env.pop("KAGHAZ_RELAUNCHED", None)
         processes = []
@@ -100,11 +101,19 @@ def run(exe, video=None):
                     raise AssertionError("Media did not load and advance playback time")
                 if video:
                     def advancing_frames():
-                        before = int(send("status", "{frames}"))
-                        deadline = time.monotonic() + 20
+                        before = None
+                        deadline = time.monotonic() + 30
                         while time.monotonic() < deadline:
-                            if int(send("status", "{frames}")) > before + 2:
-                                return
+                            if processes[-1].poll() is not None:
+                                raise AssertionError("Video player exited while rendering")
+                            try:
+                                frames = int(send("status", "{frames}"))
+                                if before is None:
+                                    before = frames
+                                elif frames > before + 2:
+                                    return
+                            except (OSError, ValueError):
+                                pass  # A slow virtual GPU must still eventually advance frames.
                             time.sleep(0.2)
                         raise AssertionError("Video frames stopped rendering")
                     advancing_frames()

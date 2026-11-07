@@ -46,6 +46,17 @@ use store::{Session, Store};
 slint::include_modules!();
 
 const CODE_SESSION: &str = "Code";
+
+fn window_fullscreen(window: &slint::Window) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use slint::winit_030::winit::platform::macos::WindowExtMacOS;
+        if window.with_winit_window(|native| native.simple_fullscreen()).unwrap_or(false) {
+            return true;
+        }
+    }
+    window.is_fullscreen()
+}
 const HELP: &str = "\
 Kaghaz — a calm, glassy music player
 
@@ -1116,7 +1127,7 @@ impl Player {
         if !video {
             ui.set_sub_tracks(ModelRc::default());
             ui.set_audio_tracks(ModelRc::default());
-            if ui.window().is_fullscreen() {
+            if window_fullscreen(ui.window()) {
                 self.set_fullscreen(false);
             }
         }
@@ -1168,23 +1179,37 @@ impl Player {
     }
 
     fn toggle_fullscreen(&mut self) {
-        let fullscreen = self.ui().window().is_fullscreen();
+        let fullscreen = window_fullscreen(self.ui().window());
         self.set_fullscreen(!fullscreen);
     }
 
     fn set_fullscreen(&mut self, on: bool) {
         let ui = self.ui();
         let w = ui.window();
-        if on == w.is_fullscreen() {
+        if on == window_fullscreen(w) {
             return;
         }
-        if on {
-            if !w.is_maximized() {
-                self.windowed = Some((w.position(), w.size()));
+        if on && !w.is_maximized() {
+            self.windowed = Some((w.position(), w.size()));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            // Keep video fullscreen on this desktop. Native Spaces transitions
+            // are asynchronous and AppKit can crash if controls resize/exit
+            // while its fullscreen content view is being replaced.
+            use slint::winit_030::winit::platform::macos::WindowExtMacOS;
+            let changed = w.with_winit_window(|native| {
+                native.set_borderless_game(true);
+                native.set_simple_fullscreen(on)
+            }).unwrap_or(false);
+            if !changed {
+                return;
             }
-            w.set_fullscreen(true);
-        } else {
-            w.set_fullscreen(false);
+            ui.set_macos_fullscreen(on);
+        }
+        #[cfg(not(target_os = "macos"))]
+        w.set_fullscreen(on);
+        if !on {
             // Once the switch settles, make the drawing surface match the window.
             Timer::single_shot(Duration::from_millis(50), || {
                 with(|p| p.after_fullscreen());
@@ -1198,26 +1223,31 @@ impl Player {
     fn after_fullscreen(&mut self) {
         let ui = self.ui();
         let w = ui.window();
-        if w.is_fullscreen() {
+        if window_fullscreen(w) {
             return;
         }
         // Leaving fullscreen on Windows keeps the GPU surface at screen size, so
         // the top of the window (title bar and controls) is cut off and the
         // picture is cropped. A real resize makes it match the window again.
-        let (position, size) = self.windowed.take().unwrap_or((w.position(), w.size()));
-        w.set_size(slint::PhysicalSize::new(size.width, size.height + 1));
-        Timer::single_shot(Duration::from_millis(30), move || {
-            with(|p| {
-                let ui = p.ui();
-                let w = ui.window();
-                if !w.is_fullscreen() {
-                    w.set_size(size);
-                    w.set_position(position);
-                    w.request_redraw();
-                    p.render_subs();
-                }
+        #[cfg(target_os = "windows")]
+        {
+            let (position, size) = self.windowed.take().unwrap_or((w.position(), w.size()));
+            w.set_size(slint::PhysicalSize::new(size.width, size.height + 1));
+            Timer::single_shot(Duration::from_millis(30), move || {
+                with(|p| {
+                    let ui = p.ui();
+                    let w = ui.window();
+                    if !window_fullscreen(w) {
+                        w.set_size(size);
+                        w.set_position(position);
+                        w.request_redraw();
+                        p.render_subs();
+                    }
+                });
             });
-        });
+        }
+        #[cfg(not(target_os = "windows"))]
+        self.windowed.take();
         w.request_redraw();
         self.render_subs();
     }
@@ -1494,7 +1524,7 @@ impl Player {
             use slint::winit_030::winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
             let ui = self.ui();
             let w = ui.window();
-            let radius = if w.is_maximized() || w.is_fullscreen() { 0.0 } else if self.mini { 16.0 } else { 12.0 };
+            let radius = if w.is_maximized() || window_fullscreen(w) { 0.0 } else if self.mini { 16.0 } else { 12.0 };
             let px = (radius * w.scale_factor()).round() as u32;
             let size = w.size();
             w.with_winit_window(|ww| {
@@ -1565,7 +1595,7 @@ impl Player {
     fn save_geometry(&self) {
         let w = self.ui();
         let w = w.window();
-        if w.is_minimized() || w.is_maximized() || w.is_fullscreen() {
+        if w.is_minimized() || w.is_maximized() || window_fullscreen(w) {
             return;
         }
         let (pos, size) = (w.position(), w.size());
@@ -1726,7 +1756,7 @@ impl Player {
             .replace("{session}", &self.session)
             .replace("{volume}", &format!("{:.0}", self.volume))
             .replace("{muted}", &self.mpv.get_string("mute").unwrap_or_default())
-            .replace("{fullscreen}", if self.ui().window().is_fullscreen() { "yes" } else { "no" })
+            .replace("{fullscreen}", if window_fullscreen(self.ui().window()) { "yes" } else { "no" })
             .replace("{controls}", if self.ui().get_controls_visible() { "yes" } else { "no" })
             .replace("{frames}", &video::rendered_frames().to_string())
             .replace("{mini}", if self.mini { "yes" } else { "no" })

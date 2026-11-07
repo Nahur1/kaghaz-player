@@ -48,6 +48,12 @@ Mesa software OpenGL and a D-Bus session. These checks do not substitute for
 manual visual checks on physical GPU hardware or every Linux desktop/Wayland
 compositor.
 
+macOS fullscreen uses winit's simple fullscreen mode on the current desktop,
+avoiding overlapping AppKit Spaces transitions on the custom frameless window.
+The one-pixel GPU surface repair remains Windows-only. Hosted Mac smoke tests
+use a scale factor of 1 to keep their CPU OpenGL renderer practical; physical
+Macs retain their normal display scaling.
+
 ## Local builds
 
 Install native libmpv development libraries plus Rust stable and platform GUI

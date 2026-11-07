@@ -728,12 +728,14 @@ export component KaghazTray inherits SystemTrayIcon {
 }
 
 export component AppWindow inherits Window {
+    in property <bool> macos-fullscreen: false;
+    property <bool> player-fullscreen: self.full-screen || self.macos-fullscreen;
     icon: @image-url("icons/kaghaz-256.png");
     in property <string> window-title: "Kaghaz Player";
     title: window-title;
     no-frame: true;
     background: transparent;
-    resize-border-width: root.full-screen || (mini && !video-mode) ? 0px : 6px;
+    resize-border-width: root.player-fullscreen || (mini && !video-mode) ? 0px : 6px;
     min-width: mini ? (video-mode ? 280px : 360px) : 820px;
     min-height: mini ? (video-mode ? 158px : 84px) : 560px;
     max-height: mini && !video-mode ? 84px : 100000px;
@@ -990,7 +992,7 @@ export component AppWindow inherits Window {
 
     property <bool> has-track: current-index >= 0;
     property <bool> wide: self.width > 960px;
-    property <length> radius: self.mini ? 16px : self.maximized || self.full-screen ? 0px : 12px;
+    property <length> radius: self.mini ? 16px : self.maximized || self.player-fullscreen ? 0px : 12px;
 
     frame := Rectangle {
         border-radius: root.radius;
@@ -1033,7 +1035,7 @@ export component AppWindow inherits Window {
                 if e.modifiers.control && e.text == "," { root.show-settings = true; return accept; }
                 if e.modifiers.control && (e.text == "l" || e.text == "L") { root.show-link-sheet = true; return accept; }
                 if e.modifiers.control && (e.text == "m" || e.text == "M") { root.toggle-mini(); return accept; }
-                if e.text == Key.Escape && root.full-screen { root.toggle-fullscreen(); return accept; }
+                if e.text == Key.Escape && root.player-fullscreen { root.toggle-fullscreen(); return accept; }
                 if (e.text == Key.Escape || e.text == Key.Backspace) && (root.view == "album" || root.view == "artist")
                     && !root.show-settings && !root.show-open-sheet && !root.show-equalizer {
                     root.go-back();
@@ -1045,7 +1047,7 @@ export component AppWindow inherits Window {
                 if e.text == Key.Delete && root.has-track { root.row-action("queue", root.current-index, "trash"); return accept; }
                 if root.show-video && (e.text == "f" || e.text == "F") { root.toggle-fullscreen(); return accept; }
                 if root.video-mode && (e.text == "v" || e.text == "V") { root.video-browse = !root.video-browse; return accept; }
-                if root.video-mode && e.text == Key.Escape && root.full-screen { root.toggle-fullscreen(); return accept; }
+                if root.video-mode && e.text == Key.Escape && root.player-fullscreen { root.toggle-fullscreen(); return accept; }
                 if e.text == " " { root.play-pause(); return accept; }
                 // Shift: one second, for precise checking. Otherwise five.
                 if e.text == Key.RightArrow { root.seek(Math.min(root.position + (e.modifiers.shift ? 1 : 5), root.duration)); return accept; }
@@ -2352,9 +2354,9 @@ export component AppWindow inherits Window {
                     animate opacity { duration: 260ms; easing: ease-out; }
                     background: @linear-gradient(180deg, #000000.with-alpha(0.62) 0%, #000000.with-alpha(0) 100%);
                     // Kept alive and only hidden in fullscreen, so nothing pops in on the way back.
-                    if !root.mini: WindowMoveArea { visible: !root.full-screen; }
+                    if !root.mini: WindowMoveArea { visible: !root.player-fullscreen; }
                     if !root.mini: Rectangle {
-                        visible: !root.full-screen;
+                        visible: !root.player-fullscreen;
                         x: 18px;
                         y: 14px;
                         width: lib-label.preferred-width + 40px;
@@ -2386,7 +2388,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     if !root.mini: TrafficLights {
-                        visible: !root.full-screen;
+                        visible: !root.player-fullscreen;
                         x: parent.width - self.width - 22px;
                         y: 13px;
                         close => { root.close-window(); }
@@ -2926,7 +2928,7 @@ export component AppWindow inherits Window {
         }
 
         if !root.mini && !root.show-video: TrafficLights {
-            visible: !root.full-screen;
+            visible: !root.player-fullscreen;
             x: parent.width - self.width - 22px;
             y: 17px;
             close => { root.close-window(); }

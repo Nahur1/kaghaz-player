@@ -9,10 +9,9 @@ import plistlib
 import re
 import shutil
 import subprocess
-import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
+VERSION = re.search(r'^version = "([^"]+)"', (ROOT / "Cargo.toml").read_text(), re.MULTILINE).group(1)
 DIST = ROOT / "dist"
 
 

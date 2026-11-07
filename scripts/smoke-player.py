@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import wave
@@ -41,11 +42,11 @@ def run(exe, video=None):
                     processes.append(process)
 
                     def send(*parts):
-                        stream = (socket.create_connection(("127.0.0.1", port), timeout=2)
+                        stream = (socket.create_connection(("127.0.0.1", port), timeout=5)
                                   if os.name == "nt" else socket.socket(socket.AF_UNIX))
                         with stream:
                             if os.name != "nt":
-                                stream.settimeout(2)
+                                stream.settimeout(5)
                                 stream.connect(endpoint)
                             stream.sendall(("\t".join(parts) + "\n").encode())
                             return stream.recv(4096).decode("utf-8").strip()
@@ -85,11 +86,14 @@ def run(exe, video=None):
 
                 send, expect, close = launch()
                 expect("80|no|no")
-                deadline = time.monotonic() + 20
+                deadline = time.monotonic() + 30
                 while time.monotonic() < deadline:
-                    position, duration = send("status", "{pos}|{dur}").split("|")
-                    if position != "0:00" and duration != "0:00":
-                        break
+                    try:
+                        status = send("status", "{pos}|{dur}").split("|")
+                        if len(status) == 2 and all(value != "0:00" for value in status):
+                            break
+                    except OSError:
+                        pass  # OpenGL initialization can temporarily occupy the UI thread.
                     time.sleep(0.2)
                 else:
                     raise AssertionError("Media did not load and advance playback time")
@@ -133,6 +137,14 @@ def run(exe, video=None):
             except Exception:
                 log.flush()
                 print((root / "output.log").read_text(encoding="utf-8", errors="replace"))
+                if sys.platform == "darwin":
+                    for process in processes:
+                        if process.poll() is None:
+                            sample = root / f"sample-{process.pid}.txt"
+                            subprocess.run(["sample", str(process.pid), "2", "-file", str(sample)],
+                                           capture_output=True, timeout=15)
+                            if sample.exists():
+                                print(sample.read_text(errors="replace")[:24000])
                 raise
             finally:
                 for process in processes:

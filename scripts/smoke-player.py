@@ -85,6 +85,14 @@ def run(exe, video=None):
 
                 send, expect, close = launch()
                 expect("80|no|no")
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    position, duration = send("status", "{pos}|{dur}").split("|")
+                    if position != "0:00" and duration != "0:00":
+                        break
+                    time.sleep(0.2)
+                else:
+                    raise AssertionError("Media did not load and advance playback time")
                 if video:
                     def advancing_frames():
                         before = int(send("status", "{frames}"))
@@ -120,6 +128,8 @@ def run(exe, video=None):
                 expect("80|yes|no")  # Mute and volume survive a full process restart.
                 close()
                 print("PASS: native mute/restore, mini/full transitions, persisted mute, complete process exit and released IPC port")
+                if video:
+                    print("PASS: OpenGL frames advance in video, fullscreen, restored window and PiP")
             except Exception:
                 log.flush()
                 print((root / "output.log").read_text(encoding="utf-8", errors="replace"))

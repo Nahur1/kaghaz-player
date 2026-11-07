@@ -88,7 +88,8 @@ def macos():
     executable = contents / "MacOS/kaghaz"
     if volume.exists():
         raise ValueError(f"Staging folder already exists: {volume}")
-    resources(executable.parent)
+    resources(contents / "Resources")
+    executable.parent.mkdir(parents=True)
     shutil.copy2(ROOT / "target/release/kaghaz", executable)
     executable.chmod(0o755)
     info = plistlib.loads((ROOT / "packaging/macos/Info.plist").read_bytes())
@@ -101,14 +102,13 @@ def macos():
             name = f"icon_{size}x{size}{'@2x' if scale == 2 else ''}.png"
             command("sips", "-z", size * scale, size * scale, ROOT / "ui/icons/kaghaz-512.png",
                     "--out", iconset / name)
-    (contents / "Resources").mkdir()
     command("iconutil", "-c", "icns", iconset, "-o", contents / "Resources/kaghaz.icns")
     # Recursively vendor libmpv and all non-system dylibs; use relative load paths.
     command("dylibbundler", "-od", "-b", "-x", executable,
             "-d", contents / "Frameworks", "-p", "@executable_path/../Frameworks/")
     # Ship dependency license receipts from Homebrew alongside the dylibs.
     cellar = Path(subprocess.check_output(["brew", "--cellar"], text=True).strip())
-    receipts = contents / "MacOS/licenses/homebrew"
+    receipts = contents / "Resources/licenses/homebrew"
     for formula in sorted(cellar.iterdir()):
         for receipt in formula.glob("*/.brew/*.rb"):
             target = receipts / formula.name

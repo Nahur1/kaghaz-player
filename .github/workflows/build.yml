@@ -133,7 +133,8 @@ jobs:
           trap 'hdiutil detach "$RUNNER_TEMP/kaghaz-mounted"' EXIT
           cp -R "$RUNNER_TEMP/kaghaz-mounted/Kaghaz Player.app" "$RUNNER_TEMP/Kaghaz Player.app"
           codesign --verify --deep --strict "$RUNNER_TEMP/Kaghaz Player.app"
-          test -s "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/models/enfa/model.enfa.intgemm.alphas.bin"
+          test -s "$RUNNER_TEMP/Kaghaz Player.app/Contents/Resources/models/enfa/model.enfa.intgemm.alphas.bin"
+          test -s "$RUNNER_TEMP/Kaghaz Player.app/Contents/Resources/runtime/fonts/Vazirmatn.ttf"
           python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz"
           python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz" --video "$RUNNER_TEMP/kaghaz-smoke.mp4"
       - uses: actions/upload-artifact@v4

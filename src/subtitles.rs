@@ -36,8 +36,15 @@ pub fn asset(name: &str) -> PathBuf {
     let exe = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(Path::to_owned));
+    // Native macOS bundles keep data in Contents/Resources, separate from code.
+    let bundle = if cfg!(target_os = "macos") {
+        exe.as_ref().map(|dir| dir.join("../Resources"))
+    } else {
+        None
+    };
     for root in exe
         .into_iter()
+        .chain(bundle)
         .chain([PathBuf::from(env!("CARGO_MANIFEST_DIR")), data_dir()])
     {
         let p = root.join(name);

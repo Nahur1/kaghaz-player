@@ -31,6 +31,9 @@ type GetProc = unsafe extern "C" fn(ctx: *mut c_void, name: *const c_char) -> *m
 struct GlInitParams {
     get_proc_address: Option<GetProc>,
     get_proc_address_ctx: *mut c_void,
+    // libmpv 0.34's C ABI includes this deprecated third pointer. New libmpv
+    // reads only the first two fields; keeping a null tail supports both ABIs.
+    extra_exts: *const c_char,
 }
 
 #[repr(C)]
@@ -106,7 +109,11 @@ impl VideoOut {
     pub fn new(mpv: *mut MpvHandle, loader: &dyn Fn(&CStr) -> *const c_void, x11_display: *mut c_void) -> Option<VideoOut> {
         let gl = unsafe { glow::Context::from_loader_function_cstr(|name| loader(name)) };
         let mut l: Loader = loader;
-        let mut init = GlInitParams { get_proc_address: Some(get_proc), get_proc_address_ctx: &mut l as *mut Loader as *mut c_void };
+        let mut init = GlInitParams {
+            get_proc_address: Some(get_proc),
+            get_proc_address_ctx: &mut l as *mut Loader as *mut c_void,
+            extra_exts: ptr::null(),
+        };
         let mut params = [
             RenderParam { kind: PARAM_API_TYPE, data: c"opengl".as_ptr() as *mut c_void },
             RenderParam { kind: PARAM_OPENGL_INIT_PARAMS, data: &mut init as *mut GlInitParams as *mut c_void },

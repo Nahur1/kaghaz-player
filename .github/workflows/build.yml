@@ -97,7 +97,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libmpv-dev libx11-dev libxext-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev libdbus-1-dev libssl-dev libasound2-dev libgtk-3-dev libclang-dev clang cmake ninja-build pkg-config xvfb xauth dbus-x11 dpkg-dev ffmpeg openbox
+          sudo apt-get install -y libmpv-dev libx11-dev libxext-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev libdbus-1-dev libssl-dev libasound2-dev libgtk-3-dev libclang-dev clang cmake ninja-build pkg-config xvfb xauth dbus-x11 dpkg-dev ffmpeg openbox gdb
       - name: macOS native dependencies
         if: runner.os == 'macOS'
         run: |
@@ -137,6 +137,14 @@ jobs:
           test -s "$RUNNER_TEMP/Kaghaz Player.app/Contents/Resources/runtime/fonts/Vazirmatn.ttf"
           python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz"
           python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz" --video "$RUNNER_TEMP/kaghaz-smoke.mp4"
+      - name: Diagnose Linux video failure
+        if: failure() && runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          export KAGHAZ_PROFILE_DIR="$RUNNER_TEMP/diagnostic-profile"
+          export KAGHAZ_SOCKET="$RUNNER_TEMP/diagnostic.sock"
+          export KAGHAZ_RENDERER=gl KAGHAZ_AO=null KAGHAZ_MPV_LOG=1 SLINT_SCALE_FACTOR=1
+          dbus-run-session -- xvfb-run -a sh -c 'openbox >/tmp/kaghaz-diagnostic-openbox.log 2>&1 & timeout 30 gdb --batch -ex run -ex "thread apply all bt" --args /usr/bin/kaghaz "$RUNNER_TEMP/kaghaz-smoke.mp4"'
       - uses: actions/upload-artifact@v4
         with:
           name: kaghaz-release-${{ matrix.platform }}-${{ matrix.arch }}

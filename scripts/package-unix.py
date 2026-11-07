@@ -67,7 +67,7 @@ def linux():
                                     f"-e{app / 'kaghaz'}"], text=True, cwd=source)
     dependencies = deps.strip().removeprefix("shlibs:Depends=")
     # X11/Wayland are dynamically loaded by winit and need explicit runtime deps.
-    dependencies += ", libxkbcommon0, libx11-6, libxcursor1, libxi6, libxrandr2, libwayland-client0, libegl1, libgl1"
+    dependencies += ", libxkbcommon0, libxkbcommon-x11-0, libx11-6, libxcursor1, libxi6, libxrandr2, libwayland-client0, libwayland-cursor0, libwayland-egl1, libegl1, libgl1"
     (control / "control").write_text(
         f"Package: kaghaz-player\nVersion: {VERSION}\nArchitecture: {arch}\n"
         "Maintainer: Mohammad Fakhari (Nahur1) <51950495+Nahur1@users.noreply.github.com>\n"

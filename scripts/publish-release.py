@@ -75,10 +75,27 @@ def summary(message):
             output.write(message + "\n")
 
 
-def publish(directory, repository, commit):
+def platform_assets(directory, version):
+    """All three native Unix packages are required for a cross-platform release."""
+    root = Path(directory)
+    paths = []
+    for suffix in ("linux-amd64.deb", "macos-arm64.dmg", "macos-x86_64.dmg"):
+        package = root / f"kaghaz-player-{version}-{suffix}"
+        checksum = package.with_suffix(package.suffix + ".sha256")
+        expected = f"{hashlib.sha256(package.read_bytes()).hexdigest()}  {package.name}"
+        if not package.stat().st_size or checksum.read_text(encoding="utf-8").strip() != expected:
+            raise ValueError(f"Invalid package/checksum: {package.name}")
+        paths += [package, checksum]
+    return paths
+
+
+def publish(directory, repository, commit, cross_platform=False):
     if repository != "Nahur1/kaghaz-player" or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("Publishing requires the official repository and a full commit SHA")
     version, installer = verify_assets(directory, repository)
+    upload_paths = [installer, Path(directory) / "latest.json"]
+    if cross_platform:
+        upload_paths += platform_assets(directory, version)
     declared = re.search(r'^version = "([^"]+)"', Path("Cargo.toml").read_text(encoding="utf-8"), re.MULTILINE)
     if not declared or version != declared.group(1):
         raise ValueError("Build artifacts do not match the checked-out package version")
@@ -101,11 +118,11 @@ def publish(directory, repository, commit):
             "name": f"Kaghaz Player {version}",
             "body": notes.read_text(encoding="utf-8") if notes.is_file() else f"Kaghaz Player {version}",
         })
-    gh("release", "upload", tag, str(installer), str(Path(directory) / "latest.json"),
+    gh("release", "upload", tag, *map(str, upload_paths),
        "--repo", repository, "--clobber")
     draft = api(f"{base}/releases/{existing['id']}")
     assets = {asset["name"]: asset["size"] for asset in draft["assets"]}
-    for path in [installer, Path(directory) / "latest.json"]:
+    for path in upload_paths:
         if assets.get(path.name) != path.stat().st_size:
             raise ValueError(f"Release upload missing or incomplete: {path.name}")
     # Recheck after uploads: a different build must not become latest behind us.
@@ -127,5 +144,6 @@ if __name__ == "__main__":
     parser.add_argument("--artifact-dir", required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--cross-platform", action="store_true")
     args = parser.parse_args()
-    publish(args.artifact_dir, args.repository, args.commit)
+    publish(args.artifact_dir, args.repository, args.commit, args.cross_platform)

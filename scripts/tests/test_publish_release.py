@@ -13,6 +13,21 @@ spec.loader.exec_module(publisher)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_cross_platform_release_requires_all_verified_packages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaises(FileNotFoundError):
+                publisher.platform_assets(root, "0.3.6")
+            for suffix in ("linux-amd64.deb", "macos-arm64.dmg", "macos-x86_64.dmg"):
+                path = root / f"kaghaz-player-0.3.6-{suffix}"
+                path.write_bytes(b"native package fixture")
+                path.with_suffix(path.suffix + ".sha256").write_text(
+                    f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n")
+            self.assertEqual(len(publisher.platform_assets(root, "0.3.6")), 6)
+            path.write_bytes(b"corrupted download")
+            with self.assertRaises(ValueError):
+                publisher.platform_assets(root, "0.3.6")
+
     def test_verified_assets_and_tampering(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

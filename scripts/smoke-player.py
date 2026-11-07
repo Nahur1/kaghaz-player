@@ -1,4 +1,4 @@
-"""Exercise the real Windows player using an isolated profile and local IPC."""
+"""Exercise the packaged player using an isolated profile and native local IPC."""
 import argparse
 import os
 from pathlib import Path
@@ -34,11 +34,18 @@ def run(exe):
                         probe.bind(("127.0.0.1", 0))
                         port = probe.getsockname()[1]
                     env["KAGHAZ_IPC_PORT"] = str(port)
-                    process = subprocess.Popen([str(exe), str(audio)], env=env, stdout=log, stderr=log)
+                    endpoint = str(root / "ipc.sock")
+                    env["KAGHAZ_SOCKET"] = endpoint
+                    process = subprocess.Popen([str(exe), str(audio)], cwd=root, env=env, stdout=log, stderr=log)
                     processes.append(process)
 
                     def send(*parts):
-                        with socket.create_connection(("127.0.0.1", port), timeout=2) as stream:
+                        stream = (socket.create_connection(("127.0.0.1", port), timeout=2)
+                                  if os.name == "nt" else socket.socket(socket.AF_UNIX))
+                        with stream:
+                            if os.name != "nt":
+                                stream.settimeout(2)
+                                stream.connect(endpoint)
                             stream.sendall(("\t".join(parts) + "\n").encode())
                             return stream.recv(4096).decode("utf-8").strip()
 
@@ -63,9 +70,14 @@ def run(exe):
                             pass  # The process can exit before its final reply.
                         assert process.wait(timeout=10) == 0, "Player did not exit cleanly"
                         try:
-                            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                            probe = (socket.create_connection(("127.0.0.1", port), timeout=0.2)
+                                     if os.name == "nt" else socket.socket(socket.AF_UNIX))
+                            with probe:
+                                if os.name != "nt":
+                                    probe.settimeout(0.2)
+                                    probe.connect(endpoint)
                                 raise AssertionError("IPC listener survived closing the player")
-                        except (ConnectionRefusedError, TimeoutError):
+                        except (ConnectionRefusedError, TimeoutError, FileNotFoundError):
                             pass
 
                     return send, expect, close

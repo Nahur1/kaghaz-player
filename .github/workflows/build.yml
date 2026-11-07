@@ -1,4 +1,4 @@
-name: Kaghaz Windows build and release
+name: Kaghaz native builds and release
 on:
   workflow_dispatch:
   push:
@@ -63,9 +63,84 @@ jobs:
           path: |
             dist/kaghaz-setup-*.exe
             dist/latest.json
+  unix:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            platform: linux
+            arch: amd64
+          - runner: macos-15
+            platform: macos
+            arch: arm64
+          - runner: macos-15-intel
+            platform: macos
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 3
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform }}-${{ matrix.arch }}
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmpv-dev libx11-dev libxext-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev libdbus-1-dev libssl-dev libasound2-dev libgtk-3-dev libclang-dev clang cmake ninja-build pkg-config xvfb xauth dbus-x11 dpkg-dev ffmpeg
+      - name: macOS native dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install mpv dylibbundler
+          echo "MPV_LIB_DIR=$(brew --prefix mpv)/lib" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+      - name: Prepare verified offline translation model
+        run: python3 scripts/prepare-offline.py
+      - name: Unit and release tests
+        run: |
+          cargo test --locked
+          python3 -m unittest discover -s scripts/tests -v
+      - name: Test actual offline English to Persian inference
+        run: cargo test --locked --release mt::tests::real_model_translates -- --ignored --nocapture
+      - name: Build and package native player
+        run: |
+          cargo build --locked --release
+          python3 scripts/package-unix.py ${{ matrix.platform }}
+      - name: Install and test Linux package
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./dist/kaghaz-player-*-linux-amd64.deb
+          test -s /usr/lib/kaghaz/models/enfa/model.enfa.intgemm.alphas.bin
+          test -s /usr/lib/kaghaz/runtime/fonts/Vazirmatn.ttf
+          dbus-run-session -- xvfb-run -a python3 scripts/smoke-player.py --exe /usr/bin/kaghaz
+      - name: Mount and test macOS disk image
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/kaghaz-mounted"
+          hdiutil attach dist/kaghaz-player-*-macos-${{ matrix.arch }}.dmg -nobrowse -readonly -mountpoint "$RUNNER_TEMP/kaghaz-mounted"
+          trap 'hdiutil detach "$RUNNER_TEMP/kaghaz-mounted"' EXIT
+          cp -R "$RUNNER_TEMP/kaghaz-mounted/Kaghaz Player.app" "$RUNNER_TEMP/Kaghaz Player.app"
+          codesign --verify --deep --strict "$RUNNER_TEMP/Kaghaz Player.app"
+          test -s "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/models/enfa/model.enfa.intgemm.alphas.bin"
+          python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kaghaz-release-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/*.deb
+            dist/*.dmg
+            dist/*.sha256
   publish:
     if: github.repository == 'Nahur1/kaghaz-player' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: windows
+    needs: [windows, unix]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -74,9 +149,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: kaghaz-release-windows-x64
+          pattern: kaghaz-release-*
+          merge-multiple: true
           path: release-assets
       - name: Verify and publish new version
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish-release.py --artifact-dir release-assets --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
+        run: python3 scripts/publish-release.py --artifact-dir release-assets --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY" --cross-platform

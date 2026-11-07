@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import platform
 import plistlib
+import re
 import shutil
 import subprocess
 import tomllib
@@ -17,6 +18,28 @@ DIST = ROOT / "dist"
 
 def command(*args):
     subprocess.run(list(map(str, args)), check=True, stdin=subprocess.DEVNULL, timeout=600)
+
+
+def macho_rpaths(text):
+    return re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset", text)
+
+
+def deduplicate_rpaths(binary):
+    # dylibbundler rewrites multiple distinct source rpaths to the same bundle
+    # path. Recent dyld rejects duplicate load commands even if codesign passes.
+    def read():
+        return macho_rpaths(subprocess.check_output(["otool", "-l", str(binary)], text=True))
+    paths = read()
+    for path in dict.fromkeys(paths):
+        while paths.count(path) > 1:
+            before = paths.count(path)
+            command("install_name_tool", "-delete_rpath", path, binary)
+            paths = read()
+            if paths.count(path) >= before:
+                raise ValueError(f"Could not deduplicate rpath in {binary}: {path}")
+            if path not in paths:
+                command("install_name_tool", "-add_rpath", path, binary)
+                paths.append(path)
 
 
 def resources(destination):
@@ -120,6 +143,7 @@ def macos():
                 target.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(entry, target / entry.name)
     for binary in [executable, *sorted((contents / "Frameworks").glob("*.dylib"))]:
+        deduplicate_rpaths(binary)
         linked = subprocess.check_output(["otool", "-L", str(binary)], text=True)
         for line in linked.splitlines()[1:]:
             dependency = line.strip().split(" (", 1)[0]

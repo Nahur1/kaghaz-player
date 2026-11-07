@@ -9,7 +9,7 @@ import time
 import wave
 
 
-def run(exe):
+def run(exe, video=None):
     exe = Path(exe).resolve(strict=True)
     if exe.with_name("unins000.exe").exists():
         raise ValueError("Use a portable/test executable, not an installed application")
@@ -23,7 +23,8 @@ def run(exe):
             output.setframerate(8000)
             output.writeframes(b"\0" * (8000 * 2 * 90))
         env = os.environ.copy()
-        env.update(KAGHAZ_PROFILE_DIR=str(root / "profile"), KAGHAZ_RENDERER="software", KAGHAZ_AO="null")
+        media = Path(video).resolve(strict=True) if video else audio
+        env.update(KAGHAZ_PROFILE_DIR=str(root / "profile"), KAGHAZ_RENDERER="gl" if video else "software", KAGHAZ_AO="null")
         env.pop("KAGHAZ_MINI", None)
         env.pop("KAGHAZ_RELAUNCHED", None)
         processes = []
@@ -36,7 +37,7 @@ def run(exe):
                     env["KAGHAZ_IPC_PORT"] = str(port)
                     endpoint = str(root / "ipc.sock")
                     env["KAGHAZ_SOCKET"] = endpoint
-                    process = subprocess.Popen([str(exe), str(audio)], cwd=root, env=env, stdout=log, stderr=log)
+                    process = subprocess.Popen([str(exe), str(media)], cwd=root, env=env, stdout=log, stderr=log)
                     processes.append(process)
 
                     def send(*parts):
@@ -49,13 +50,13 @@ def run(exe):
                             stream.sendall(("\t".join(parts) + "\n").encode())
                             return stream.recv(4096).decode("utf-8").strip()
 
-                    def expect(value):
+                    def expect(value, format="{volume}|{muted}|{mini}"):
                         deadline = time.monotonic() + 20
                         while time.monotonic() < deadline:
                             if process.poll() is not None:
                                 raise AssertionError(f"Player exited unexpectedly: {process.returncode}")
                             try:
-                                result = send("status", "{volume}|{muted}|{mini}")
+                                result = send("status", format)
                                 if result == value:
                                     return
                             except OSError:
@@ -84,14 +85,34 @@ def run(exe):
 
                 send, expect, close = launch()
                 expect("80|no|no")
+                if video:
+                    def advancing_frames():
+                        before = int(send("status", "{frames}"))
+                        deadline = time.monotonic() + 20
+                        while time.monotonic() < deadline:
+                            if int(send("status", "{frames}")) > before + 2:
+                                return
+                            time.sleep(0.2)
+                        raise AssertionError("Video frames stopped rendering")
+                    advancing_frames()
+                    send("fullscreen")
+                    expect("yes", "{fullscreen}")
+                    advancing_frames()
+                    send("fullscreen")
+                    expect("no", "{fullscreen}")
+                    advancing_frames()
                 send("mute")
                 expect("80|yes|no")
                 send("mini")
                 expect("80|yes|yes")
+                if video:
+                    advancing_frames()
                 send("mute")
                 expect("80|no|yes")
                 send("full")
                 expect("80|no|no")
+                if video:
+                    advancing_frames()
                 send("mute")
                 expect("80|yes|no")
                 close()
@@ -113,4 +134,6 @@ def run(exe):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", required=True)
-    run(parser.parse_args().exe)
+    parser.add_argument("--video", help="Also verify real OpenGL frames, fullscreen and PiP using this video")
+    args = parser.parse_args()
+    run(args.exe, args.video)

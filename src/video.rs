@@ -8,7 +8,7 @@
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::num::NonZeroU32;
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use glow::HasContext;
 
@@ -65,6 +65,12 @@ unsafe extern "C" {
 
 /// Set when mpv has a frame for us and a redraw is already on its way.
 static FRAME_WAITING: AtomicBool = AtomicBool::new(false);
+static RENDERED_FRAMES: AtomicU64 = AtomicU64::new(0);
+
+/// Diagnostic counter used to verify actual video rendering on native runners.
+pub fn rendered_frames() -> u64 {
+    RENDERED_FRAMES.load(Ordering::Relaxed)
+}
 
 /// mpv calls this from its own thread when a new frame is ready.
 unsafe extern "C" fn on_update(_: *mut c_void) {
@@ -178,6 +184,7 @@ impl VideoOut {
                 RenderParam { kind: PARAM_END, data: ptr::null_mut() },
             ];
             mpv_render_context_render(self.ctx, params.as_mut_ptr());
+            RENDERED_FRAMES.fetch_add(1, Ordering::Relaxed);
 
             // Put back what Slint had bound.
             let restore_fbo = NonZeroU32::new(prev_fbo as u32).map(glow::NativeFramebuffer);

@@ -35,6 +35,9 @@ working tree before editing; preserve uncommitted work and the `design/` folder.
 - Application updates must increment the version in Cargo.toml and Cargo.lock
   and include notes in docs/releases/X.Y.Z.md. Push main: the Windows Actions
   workflow builds, tests and publishes the installer and latest.json itself.
+  From 0.3.6, require native Linux amd64 and macOS arm64/Intel package, offline
+  inference, and playback lifecycle/video smoke jobs before publishing. Ship
+  Unix packages and checksums together; see docs/CROSS_PLATFORM.md.
   Wait for the publish job and verify the public assets before reporting that
   a version is released. Do not substitute a locally built binary for CI output.
 

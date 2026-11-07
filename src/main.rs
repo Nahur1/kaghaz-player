@@ -57,13 +57,13 @@ USAGE
 CONTROL A RUNNING KAGHAZ
   kaghaz toggle | play | pause | mute | next | prev
   kaghaz close                  stop playback and exit completely
-  kaghaz mini | full | show
+  kaghaz mini | full | fullscreen | show
   kaghaz sleep 30 | end | off     sleep timer: minutes, end of this track, or off
   kaghaz speed 1.5               playback speed, remembered for the folder
   kaghaz mark [NOTE]             bookmark this moment (with an optional note)
   kaghaz status [--format FMT]   e.g. --format \"{state} {title} · {pos}/{dur}\"
                                fields: {state} {title} {artist} {album} {pos} {dur} {session}
-                                       {volume} {muted} {mini} {fullscreen} {controls}
+                                       {volume} {muted} {mini} {fullscreen} {controls} {frames}
 
 OPTIONS
   --session NAME     Use a session: Main, Code, Relax or one you made
@@ -126,6 +126,7 @@ fn parse_args() -> Result<Args, String> {
             "prev" | "previous" => Some(Cmd::Prev),
             "mini" => Some(Cmd::Mini),
             "full" => Some(Cmd::Full),
+            "fullscreen" => Some(Cmd::Fullscreen),
             "show" => Some(Cmd::Show),
             "status" => Some(Cmd::Status(String::new())),
             // `kaghaz play` alone resumes; `kaghaz play PATH...` plays those files.
@@ -1648,6 +1649,7 @@ impl Player {
             Cmd::Show => self.show_window(),
             Cmd::Code => self.enter_code_mode(),
             Cmd::Mini => self.set_mini(true),
+            Cmd::Fullscreen => self.toggle_fullscreen(),
             Cmd::Full => {
                 self.set_mini(false);
                 self.show_window();
@@ -1726,6 +1728,7 @@ impl Player {
             .replace("{muted}", &self.mpv.get_string("mute").unwrap_or_default())
             .replace("{fullscreen}", if self.ui().window().is_fullscreen() { "yes" } else { "no" })
             .replace("{controls}", if self.ui().get_controls_visible() { "yes" } else { "no" })
+            .replace("{frames}", &video::rendered_frames().to_string())
             .replace("{mini}", if self.mini { "yes" } else { "no" })
     }
 

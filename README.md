@@ -8,9 +8,18 @@ An independent local music and video player with an Apple-inspired glass interfa
 
 ## Run on this Windows computer
 
-Run `kaghaz-setup-0.3.5.exe` (from [Releases](https://github.com/Nahur1/kaghaz-player/releases) or `dist`). It installs for your user only, with no administrator prompt, adds Start menu and desktop shortcuts, and from then on Kaghaz keeps itself up to date automatically. The installed app is about 175 MB, the Persian model included.
+Run `kaghaz-setup-0.3.6.exe` (from [Releases](https://github.com/Nahur1/kaghaz-player/releases) or `dist`). It installs for your user only, with no administrator prompt, adds Start menu and desktop shortcuts, and from then on Kaghaz keeps itself up to date automatically. The installed app is about 175 MB, the Persian model included.
 
-A portable copy is also built in `dist/Kaghaz Player 0.3.5` (keep `libmpv-2.dll`, `runtime` and `models` beside `kaghaz.exe`); portable copies don't update themselves.
+A portable copy is also built in `dist/Kaghaz Player 0.3.6` (keep `libmpv-2.dll`, `runtime` and `models` beside `kaghaz.exe`); portable copies don't update themselves.
+
+## macOS and Linux
+
+Download the macOS 15+ disk image for Apple Silicon (arm64) or Intel (x86_64),
+or the Debian/Ubuntu amd64 installer from [Releases](https://github.com/Nahur1/kaghaz-player/releases).
+All include the offline Persian model and fonts. Mac builds are ad-hoc signed,
+not Apple notarized; first launch may need approval in Privacy & Security.
+Linux: `sudo apt install ./kaghaz-player-*-linux-amd64.deb`.
+Unix updates are manual. See [native builds and tests](docs/CROSS_PLATFORM.md).
 
 ## Live Persian subtitles, offline
 
@@ -48,7 +57,7 @@ Source and releases: https://github.com/Nahur1/kaghaz-player.
 
 ## Releasing an update
 
-Bump `version` in `Cargo.toml` and its package entry in `Cargo.lock`, add notes in `docs/releases/X.Y.Z.md`, then push to `main`. GitHub Actions tests the code, builds the Windows installer, verifies its checksum and publishes `kaghaz-setup-X.Y.Z.exe` plus `latest.json` as the latest release. No local build or manual tag is needed. An already published version is never overwritten; increase the version for each application update. Pull requests are built and tested without publishing. The workflow can also be run manually on `main` to retry an interrupted release.
+Bump `version` in `Cargo.toml` and its package entry in `Cargo.lock`, add notes in `docs/releases/X.Y.Z.md`, then push to `main`. GitHub Actions tests native Windows, Linux and both Mac architectures, verifies offline inference and packaged playback, then publishes the Windows installer/update manifest, Linux .deb, two Mac .dmg files and Unix SHA-256 checksums together as the latest release. No local build or manual tag is needed. An already published version is never overwritten; increase the version for each application update. Pull requests are built and tested without publishing. The workflow can also be run manually on `main` to retry an interrupted release.
 
 For a local installer only, run `./scripts/release.ps1` (needs Inno Setup 6). Installed copies check about 20 seconds after start and every six hours, download the latest public release in the background, verify its SHA-256, and install it silently when Kaghaz closes (or straight away from About → Restart and update).
 

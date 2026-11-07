@@ -93,7 +93,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libmpv-dev libx11-dev libxext-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev libdbus-1-dev libssl-dev libasound2-dev libgtk-3-dev libclang-dev clang cmake ninja-build pkg-config xvfb xauth dbus-x11 dpkg-dev ffmpeg
+          sudo apt-get install -y libmpv-dev libx11-dev libxext-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev libdbus-1-dev libssl-dev libasound2-dev libgtk-3-dev libclang-dev clang cmake ninja-build pkg-config xvfb xauth dbus-x11 dpkg-dev ffmpeg openbox
       - name: macOS native dependencies
         if: runner.os == 'macOS'
         run: |
@@ -112,13 +112,15 @@ jobs:
         run: |
           cargo build --locked --release
           python3 scripts/package-unix.py ${{ matrix.platform }}
+      - name: Generate video rendering fixture
+        run: ffmpeg -y -f lavfi -i testsrc2=size=320x180:rate=15 -f lavfi -i anullsrc=r=44100:cl=stereo -t 90 -c:v mpeg4 -c:a aac "$RUNNER_TEMP/kaghaz-smoke.mp4"
       - name: Install and test Linux package
         if: runner.os == 'Linux'
         run: |
           sudo apt-get install -y ./dist/kaghaz-player-*-linux-amd64.deb
           test -s /usr/lib/kaghaz/models/enfa/model.enfa.intgemm.alphas.bin
           test -s /usr/lib/kaghaz/runtime/fonts/Vazirmatn.ttf
-          dbus-run-session -- xvfb-run -a python3 scripts/smoke-player.py --exe /usr/bin/kaghaz
+          dbus-run-session -- xvfb-run -a sh -c 'openbox >/tmp/kaghaz-openbox.log 2>&1 & python3 scripts/smoke-player.py --exe /usr/bin/kaghaz && python3 scripts/smoke-player.py --exe /usr/bin/kaghaz --video "$RUNNER_TEMP/kaghaz-smoke.mp4"'
       - name: Mount and test macOS disk image
         if: runner.os == 'macOS'
         run: |
@@ -129,6 +131,7 @@ jobs:
           codesign --verify --deep --strict "$RUNNER_TEMP/Kaghaz Player.app"
           test -s "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/models/enfa/model.enfa.intgemm.alphas.bin"
           python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz"
+          python3 scripts/smoke-player.py --exe "$RUNNER_TEMP/Kaghaz Player.app/Contents/MacOS/kaghaz" --video "$RUNNER_TEMP/kaghaz-smoke.mp4"
       - uses: actions/upload-artifact@v4
         with:
           name: kaghaz-release-${{ matrix.platform }}-${{ matrix.arch }}

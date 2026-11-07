@@ -16,7 +16,7 @@ DIST = ROOT / "dist"
 
 
 def command(*args):
-    subprocess.run(list(map(str, args)), check=True)
+    subprocess.run(list(map(str, args)), check=True, stdin=subprocess.DEVNULL, timeout=600)
 
 
 def resources(destination):

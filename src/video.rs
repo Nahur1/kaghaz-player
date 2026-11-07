@@ -190,14 +190,18 @@ impl VideoOut {
                 RenderParam { kind: PARAM_FLIP_Y, data: &mut flip as *mut c_int as *mut c_void },
                 RenderParam { kind: PARAM_END, data: ptr::null_mut() },
             ];
-            mpv_render_context_render(self.ctx, params.as_mut_ptr());
-            RENDERED_FRAMES.fetch_add(1, Ordering::Relaxed);
+            let result = mpv_render_context_render(self.ctx, params.as_mut_ptr());
 
             // Put back what Slint had bound.
             let restore_fbo = NonZeroU32::new(prev_fbo as u32).map(glow::NativeFramebuffer);
             gl.bind_framebuffer(glow::FRAMEBUFFER, restore_fbo);
             gl.bind_texture(glow::TEXTURE_2D, NonZeroU32::new(prev_tex as u32).map(glow::NativeTexture));
             gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+            if result < 0 {
+                eprintln!("kaghaz: video frame render failed: {result}");
+                return None;
+            }
+            RENDERED_FRAMES.fetch_add(1, Ordering::Relaxed);
             // A fresh image every frame: Slint caches images it has drawn, so
             // handing back the same one would keep showing an old frame.
             Some(

@@ -26,6 +26,7 @@ def run(exe, video=None):
         env = os.environ.copy()
         media = Path(video).resolve(strict=True) if video else audio
         env.update(KAGHAZ_PROFILE_DIR=str(root / "profile"), KAGHAZ_RENDERER="gl" if video else "software", KAGHAZ_AO="null")
+        env.setdefault("KAGHAZ_MPV_LOG", "1")
         env.pop("KAGHAZ_MINI", None)
         env.pop("KAGHAZ_RELAUNCHED", None)
         processes = []

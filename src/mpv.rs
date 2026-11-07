@@ -132,8 +132,6 @@ impl Mpv {
             // Video is drawn by Kaghaz through the render API (see video.rs).
             ("vo", "libmpv"),
             ("hwdec", "auto-safe"),
-            // Simpler scaling shaders: much lighter on modest GPUs, hard to tell apart.
-            ("profile", "fast"),
             ("audio-display", "no"),
             ("keep-open", "no"),
             // Subtitles: find matching files next to the video, detect their
@@ -162,6 +160,9 @@ impl Mpv {
         ] {
             mpv.set_option(k, v)?;
         }
+        // The fast preset is optional: distro libmpv (e.g. Ubuntu 22.04)
+        // predates it. Keep playback working with its normal scaler defaults.
+        let _ = mpv.set_option("profile", "fast");
         // Debugging: KAGHAZ_MPV_LOG=1 prints mpv's own log to the terminal.
         if std::env::var_os("KAGHAZ_MPV_LOG").is_some() {
             mpv.set_option("terminal", "yes")?;

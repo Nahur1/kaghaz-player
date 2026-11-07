@@ -109,6 +109,29 @@ fn check(code: c_int, what: &str) -> anyhow::Result<()> {
     anyhow::bail!("mpv: {what}: {msg}")
 }
 
+fn loadfile_has_index(version: &str) -> bool {
+    // mpv 0.38 inserted the playlist index before per-file options.
+    let version = version.trim().strip_prefix("mpv ").unwrap_or(version.trim()).trim_start_matches('v');
+    let mut parts = version.split('.');
+    match (parts.next().and_then(|s| s.parse::<u32>().ok()), parts.next().and_then(|s| s.parse::<u32>().ok())) {
+        (Some(0), Some(minor)) => minor >= 38,
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    #[test]
+    fn loadfile_options_follow_the_installed_mpv_command_version() {
+        for version in ["mpv 0.34.1", "mpv v0.37.0", "0.36.0"] {
+            assert!(!super::loadfile_has_index(version), "{version}");
+        }
+        for version in ["mpv 0.38.0", "mpv v0.41.0-12-gabc", "0.42.0", "mpv 1.0.0", "unknown"] {
+            assert!(super::loadfile_has_index(version), "{version}");
+        }
+    }
+}
+
 impl Mpv {
     pub fn new() -> anyhow::Result<Self> {
         // mpv refuses to start unless numbers are formatted the C way.
@@ -204,7 +227,11 @@ impl Mpv {
         if audio_only {
             opts.push_str(",vid=no,ytdl-format=ba/b");
         }
-        self.command(&["loadfile", &target, "replace", "-1", &opts])
+        if loadfile_has_index(&self.get_string("mpv-version").unwrap_or_default()) {
+            self.command(&["loadfile", &target, "replace", "-1", &opts])
+        } else {
+            self.command(&["loadfile", &target, "replace", &opts])
+        }
     }
 
     pub fn stop(&self) {
